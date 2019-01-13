@@ -1,0 +1,56 @@
+FROM centos:7
+
+# Install systemd
+ENV container docker
+RUN yum -y update && yum -y install systemd && yum clean all \
+	&& (cd /lib/systemd/system/sysinit.target.wants/ && for i in *; do [ $i == systemd-tmpfiles-setup.service ] || rm -f $i; done) \
+	&& rm -f /lib/systemd/system/multi-user.target.wants/* \
+	&& rm -f /etc/systemd/system/*.wants/* \
+	&& rm -f /lib/systemd/system/local-fs.target.wants/* \
+	&& rm -f /lib/systemd/system/sockets.target.wants/*udev* \
+	&& rm -f /lib/systemd/system/sockets.target.wants/*initctl* \
+	&& rm -f /lib/systemd/system/basic.target.wants/* \
+	&& rm -f /lib/systemd/system/anaconda.target.wants/*
+VOLUME [ "/sys/fs/cgroup" ]
+STOPSIGNAL SIGINT
+
+# Install docker
+RUN yum -y update \
+	&& yum -y install yum-utils \
+	&& yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo \
+	&& yum -y update && yum -y install docker-ce-18.06.1.ce-3.el7 \
+	&& yum clean all
+VOLUME /var/lib/docker
+EXPOSE 2375
+ADD conf/systemd/docker.service /etc/systemd/system/
+RUN systemctl enable docker
+
+RUN yum -y install iproute && yum clean all
+
+# Install CNI plugins
+ENV CNI_VERSION=v0.6.0
+RUN mkdir -p /opt/cni/bin \
+	&& curl -L "https://github.com/containernetworking/plugins/releases/download/${CNI_VERSION}/cni-plugins-amd64-${CNI_VERSION}.tgz" | tar -C /opt/cni/bin -xz
+
+# Install crictl (required for kubeadm / Kubelet Container Runtime Interface (CRI))
+ENV CRICTL_VERSION=v1.11.1
+RUN mkdir -p /opt/bin \
+	&& curl -L "https://github.com/kubernetes-incubator/cri-tools/releases/download/${CRICTL_VERSION}/crictl-${CRICTL_VERSION}-linux-amd64.tar.gz" | tar -C /opt/bin -xz
+
+# Install kubeadm, kubelet, kubectl
+ENV KUBERNETES_VERSION=v1.13.2
+RUN mkdir -p /opt/bin \
+	&& cd /opt/bin \
+	&& curl -L --remote-name-all https://storage.googleapis.com/kubernetes-release/release/${KUBERNETES_VERSION}/bin/linux/amd64/{kubeadm,kubelet,kubectl} \
+	&& chmod +x kubeadm kubelet kubectl
+ADD conf/systemd/kubelet.service /etc/systemd/system/
+RUN systemctl enable kubelet
+
+ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/opt/bin
+
+ADD conf/net /etc/cni/net.d
+
+CMD ["/usr/sbin/init"]
+#CMD ["/usr/bin/dockerd", "-H", "unix:///var/run/docker.sock"]
+
+# kubeadm init --ignore-preflight-errors=FileContent--proc-sys-net-bridge-bridge-nf-call-iptables
