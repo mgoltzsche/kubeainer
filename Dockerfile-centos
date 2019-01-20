@@ -1,3 +1,12 @@
+#FROM golang:1.10-alpine AS cfssl
+#RUN apk add --update --no-cache git build-base
+#RUN git clone https://github.com/cloudflare/cfssl.git $GOPATH/src/github.com/cloudflare/cfssl --branch 1.3.2
+#RUN go get github.com/cloudflare/cfssl_trust/... \
+#	&& cp -R /go/src/github.com/cloudflare/cfssl_trust /etc/cfssl
+#WORKDIR /go/src/github.com/cloudflare/cfssl
+#RUN CGO_ENABLED=0 GOOS=linux go install -a -ldflags '-extldflags "-static"' ./cmd/...
+
+
 FROM centos:7
 
 # Install systemd
@@ -10,9 +19,10 @@ RUN yum -y update && yum -y install systemd && yum clean all \
 	&& rm -f /lib/systemd/system/sockets.target.wants/*udev* \
 	&& rm -f /lib/systemd/system/sockets.target.wants/*initctl* \
 	&& rm -f /lib/systemd/system/basic.target.wants/* \
-	&& rm -f /lib/systemd/system/anaconda.target.wants/*
+	&& rm -f /lib/systemd/system/anaconda.target.wants/* \
+	&& rm -f /usr/lib/systemd/system/*.wants/systemd-update-utmp-runlevel.service
 VOLUME [ "/sys/fs/cgroup" ]
-STOPSIGNAL SIGINT
+STOPSIGNAL SIGRTMIN+3
 
 # Install docker
 RUN yum -y update \
@@ -22,10 +32,8 @@ RUN yum -y update \
 	&& yum clean all
 VOLUME /var/lib/docker
 EXPOSE 2375
-ADD conf/systemd/docker.service /etc/systemd/system/
-RUN systemctl enable docker
 
-RUN yum -y install iproute && yum clean all
+RUN yum -y install iproute ebtables ethtool socat openssl && yum clean all
 
 # Install CNI plugins
 ENV CNI_VERSION=v0.6.0
@@ -42,15 +50,23 @@ ENV KUBERNETES_VERSION=v1.13.2
 RUN mkdir -p /opt/bin \
 	&& cd /opt/bin \
 	&& curl -L --remote-name-all https://storage.googleapis.com/kubernetes-release/release/${KUBERNETES_VERSION}/bin/linux/amd64/{kubeadm,kubelet,kubectl} \
-	&& chmod +x kubeadm kubelet kubectl
-ADD conf/systemd/kubelet.service /etc/systemd/system/
-RUN systemctl enable kubelet
+	&& chmod +x kubeadm kubelet kubectl \
+	&& mkdir -p /etc/kubernetes/manifests
 
 ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/opt/bin
+ENV KUBE_TYPE=master
 
-ADD conf/net /etc/cni/net.d
+#COPY conf/net /etc/cni/net.d
+
+# Enable systemd services
+COPY conf/systemd/* /etc/systemd/system/
+#RUN mkdir /etc/systemd/system/kube-master.target.wants && ln -s /etc/systemd/system/kube-master.target /etc/systemd/system/kube-master.target.wants/multi-user.target \
+#	&& mkdir /etc/systemd/system/kube-node.target.wants && ln -s /etc/systemd/system/kube-node.target /etc/systemd/system/kube-node.target.wants/multi-user.target \
+RUN systemctl enable docker kubelet kubeadm
+
+# Make init script appear as systemd init process to support OCI hooks oci-systemd-hook and oci-register-machine
+RUN mv /usr/sbin/init /usr/sbin/systemd
+COPY entrypoint.sh /usr/sbin/init
+COPY setup.sh /setup.sh
 
 CMD ["/usr/sbin/init"]
-#CMD ["/usr/bin/dockerd", "-H", "unix:///var/run/docker.sock"]
-
-# kubeadm init --ignore-preflight-errors=FileContent--proc-sys-net-bridge-bridge-nf-call-iptables

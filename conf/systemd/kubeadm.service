@@ -1,0 +1,15 @@
+[Unit]
+Description=kubeadm: The Kubernetes node initializer
+Documentation=http://kubernetes.io/docs/
+After=docker.service kubelet.service
+Wants=docker.service kubelet.service
+OnFailure=stop.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=/run/env
+ExecStart=/setup.sh
+StandardOutput=journal+console
+
+[Install]
+WantedBy=multi-user.target
