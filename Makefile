@@ -6,14 +6,28 @@ KUBE_MASTER_IP ?= 10.23.0.2
 # Use original resolv.conf (uncached)
 RESOLV_CONF ?= $(word 1, $(wildcard /etc/resolvconf/resolv.conf.d/original /run/systemd/resolve/resolv.conf /etc/resolv.conf))
 CA_CN ?= example.org
+IMAGES=k8s.gcr.io/kube-apiserver:v1.13.2 \
+		k8s.gcr.io/kube-proxy:v1.13.2 \
+		k8s.gcr.io/kube-controller-manager:v1.13.2 \
+		k8s.gcr.io/kube-scheduler:v1.13.2 \
+		k8s.gcr.io/kubernetes-dashboard-amd64:v1.10.1 \
+		k8s.gcr.io/coredns:1.2.6 \
+		k8s.gcr.io/etcd:3.2.24 \
+		k8s.gcr.io/pause:3.1 \
+		weaveworks/weave-npc:2.5.1 \
+		weaveworks/weave-kube:2.5.1
 
 all: build ca-cert net-create run-master run-node
 
-build:
-	docker build -f Dockerfile-centos -t ${KUBE_IMAGE} .
+build: preloaded-images.tar
+	docker build --force-rm -f Dockerfile-centos -t ${KUBE_IMAGE} .
+
+preloaded-images.tar:
+	echo ${IMAGES} | xargs -n1 docker image pull
+	docker save ${IMAGES} > preloaded-images.tar
 
 build-alpine:
-	docker build -f Dockerfile-alpine -t ${KUBE_IMAGE} .
+	docker build --force-rm -f Dockerfile-alpine -t ${KUBE_IMAGE} .
 
 ca-cert:
 	./ca.sh initca ${CA_CN}
@@ -28,9 +42,9 @@ run-master:
 	# Start a kubernetes node
 	# Note: Use oci systemd hooks, see https://developers.redhat.com/blog/2016/09/13/running-systemd-in-a-non-privileged-container/
 	# HINT: swap must be disabled: swapoff -a
-	$(eval KUBE_TOKEN ?= $(shell docker run --entrypoint=/opt/bin/kubeadm ${KUBE_IMAGE} token generate))
+	$(eval KUBE_TOKEN ?= $(shell docker run --rm --entrypoint=/opt/bin/kubeadm ${KUBE_IMAGE} token generate))
 	$(if $(strip $(KUBE_TOKEN)),,$(error KUBE_TOKEN not set and cannot not be derived))
-	docker run -d --name kube-master --privileged --net=kubeclusternet --ip ${KUBE_MASTER_IP} \
+	docker run -d --name kube-master --rm --privileged --net=kubeclusternet --ip ${KUBE_MASTER_IP} \
 		-v /sys/fs/cgroup:/sys/fs/cgroup:rw \
 		-v /lib/modules:/lib/modules:ro \
 		-v /boot:/boot:ro \
@@ -38,7 +52,7 @@ run-master:
 		-v ${RESOLV_CONF}:/etc/resolv.conf \
 		-v `pwd`/ca-cert/ca.key:/etc/kubernetes/pki/ca.key:ro \
 		-v `pwd`/ca-cert/ca.crt:/etc/kubernetes/pki/ca.crt:ro \
-		-v `pwd`/conf/manifests/admin-service-account.yaml:/etc/kubernetes/manifests/admin-service-account.yaml:ro \
+		-v `pwd`/conf/manifests:/etc/kubernetes/custom:ro \
 		-v $$HOME/.kube:/root/.kube \
 		--tmpfs /run \
 		--tmpfs /tmp \
@@ -52,7 +66,7 @@ run-node:
 	$(if $(strip $(KUBE_TOKEN)),,$(error KUBE_TOKEN not set))
 	$(eval KUBE_CA_CERT_HASH ?= sha256:$(shell openssl x509 -in ca-cert/ca.crt -noout -pubkey | openssl rsa -pubin -outform DER 2>/dev/null | sha256sum | cut -d' ' -f1))
 	$(if $(strip $(KUBE_CA_CERT_HASH)),,$(error KUBE_CA_CERT_HASH not set and cannot be derived))
-	docker run -d --name kube-node --privileged --net=kubeclusternet --link kube-master \
+	docker run -d --name kube-node --rm --privileged --net=kubeclusternet --link kube-master \
 		-v /sys/fs/cgroup:/sys/fs/cgroup:rw \
 		-v /lib/modules:/lib/modules:ro \
 		-v /boot:/boot:ro \

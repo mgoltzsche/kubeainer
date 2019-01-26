@@ -36,22 +36,25 @@ EXPOSE 2375
 RUN yum -y install iproute ebtables ethtool socat openssl && yum clean all
 
 # Install CNI plugins
-ENV CNI_VERSION=v0.6.0
+ARG CNI_VERSION=v0.6.0
 RUN mkdir -p /opt/cni/bin \
 	&& curl -L "https://github.com/containernetworking/plugins/releases/download/${CNI_VERSION}/cni-plugins-amd64-${CNI_VERSION}.tgz" | tar -C /opt/cni/bin -xz
 
 # Install crictl (required for kubeadm / Kubelet Container Runtime Interface (CRI))
-ENV CRICTL_VERSION=v1.11.1
+ARG CRICTL_VERSION=v1.11.1
 RUN mkdir -p /opt/bin \
 	&& curl -L "https://github.com/kubernetes-incubator/cri-tools/releases/download/${CRICTL_VERSION}/crictl-${CRICTL_VERSION}-linux-amd64.tar.gz" | tar -C /opt/bin -xz
 
 # Install kubeadm, kubelet, kubectl
-ENV KUBERNETES_VERSION=v1.13.2
+# (for latest stable version see https://storage.googleapis.com/kubernetes-release/release/stable.txt)
+ARG K8S_VERSION=v1.13.2
 RUN mkdir -p /opt/bin \
 	&& cd /opt/bin \
-	&& curl -L --remote-name-all https://storage.googleapis.com/kubernetes-release/release/${KUBERNETES_VERSION}/bin/linux/amd64/{kubeadm,kubelet,kubectl} \
+	&& curl -L --remote-name-all https://storage.googleapis.com/kubernetes-release/release/${K8S_VERSION}/bin/linux/amd64/{kubeadm,kubelet,kubectl} \
 	&& chmod +x kubeadm kubelet kubectl \
 	&& mkdir -p /etc/kubernetes/manifests
+
+COPY preloaded-images.tar /preloaded-images.tar
 
 ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/opt/bin
 ENV KUBE_TYPE=master
@@ -60,8 +63,6 @@ ENV KUBE_TYPE=master
 
 # Enable systemd services
 COPY conf/systemd/* /etc/systemd/system/
-#RUN mkdir /etc/systemd/system/kube-master.target.wants && ln -s /etc/systemd/system/kube-master.target /etc/systemd/system/kube-master.target.wants/multi-user.target \
-#	&& mkdir /etc/systemd/system/kube-node.target.wants && ln -s /etc/systemd/system/kube-node.target /etc/systemd/system/kube-node.target.wants/multi-user.target \
 RUN systemctl enable docker kubelet kubeadm
 
 # Make init script appear as systemd init process to support OCI hooks oci-systemd-hook and oci-register-machine

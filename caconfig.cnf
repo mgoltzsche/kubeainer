@@ -55,7 +55,7 @@ stateOrProvinceName_default = Berlin
 countryName_default = DE
 emailAddress_default = 
 [ v3_ca ]
-basicConstraints = CA:TRUE
+basicConstraints = critical,CA:TRUE
 subjectKeyIdentifier = hash
 authorityKeyIdentifier = keyid:always,issuer:always
 [ v3_req ]

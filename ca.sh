@@ -81,7 +81,7 @@ initCA() {
 	if [ -f "$CRT_CA_KEY_FILE" ]; then
 		echo "Renewing CA root certificate with:"; showParams
 		# Renew/generate new certificate with existing key
-		OUT="$(openssl req -new -x509 -extensions v3_ca \
+		OUT="$(openssl req -new -x509 -extensions v3_ca -reqexts v3_req \
 			-subj "$SUBJ" -days "$CRT_CA_VALIDITY_DAYS" $PASSOUT_ARGS \
 			-key "$CRT_CA_KEY_FILE" -out "$CRT_CA_CERT_FILE" -sha512 2>&1)" ||
 		(echo "$OUT" >&2; false) || exit 1
@@ -90,7 +90,7 @@ initCA() {
 		# Generate new key and certificate (-x509 option means the certificate will be self signed / no cert. req.)
 		touch "$CRT_CA_KEY_FILE" &&
 		chmod 600 "$CRT_CA_KEY_FILE" &&
-		OUT="$(openssl req -newkey "rsa:$CRT_CA_KEY_BITS" -x509 -extensions v3_ca \
+		OUT="$(openssl req -newkey "rsa:$CRT_CA_KEY_BITS" -x509 -extensions v3_ca -reqexts v3_req \
 			-subj "$SUBJ" -days "$CRT_CA_VALIDITY_DAYS" $PASSOUT_ARGS \
 			-keyout "$CRT_CA_KEY_FILE" -out "$CRT_CA_CERT_FILE" -sha512 2>&1)" ||
 		(echo "$OUT" >&2; rm -f "$CRT_CA_KEY_FILE"; false) || exit 1
