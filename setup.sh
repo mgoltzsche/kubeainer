@@ -24,7 +24,7 @@ case "$KUBE_TYPE" in
 		cp -f /etc/kubernetes/admin.conf /root/.kube/config &&
 
 		# Untaint master node to schedule pods
-		kubectl taint nodes --all node-role.kubernetes.io/master- &&
+		kubectl taint node $(hostname) node-role.kubernetes.io/master- &&
 
 		# Install weave networking
 		kubectl apply --wait=true --timeout=2m -f "https://cloud.weave.works/k8s/net?k8s-version=$(kubectl version | base64 | tr -d '\n')" &&
@@ -47,13 +47,27 @@ case "$KUBE_TYPE" in
 		# Wait for cert-manager apiservice to become available (before applying issuer)
 		kubectl wait --for condition=available --timeout 7m apiservice/v1beta1.admission.certmanager.k8s.io &&
 
-		kubectl apply -f /etc/kubernetes/custom
+		kubectl apply -f /etc/kubernetes/custom &&
+
+		# Install helm
+		# TODO: secure tiller access, see https://docs.helm.sh/using_helm/#best-practices-for-securing-helm-and-tiller
+		helm init --wait --service-account tiller --override 'spec.template.spec.containers[0].command'='{/tiller,--storage=secret}' &&
+			#--tiller-tls \
+			#--tiller-tls-verify \
+			#--tiller-tls-cert=cert.pem \
+			#--tiller-tls-key=key.pem \
+			#--tls-ca-cert=ca.pem
+		helm repo update &&
+
+		# Install Jenkins (see https://github.com/helm/charts/tree/master/stable/jenkins)
+		helm install --name jenkins stable/jenkins --set Master.ServiceType=ClusterIP,Master.HostName=jenkins.algorythm.de,rbac.install=true,rbac.serviceAccountName=jenkins,Agent.Enabled=true,Persistence.Size=1Gi,Persistence.StorageClass=local-storage
 	;;
 	node)
 		[ ! -z "$KUBE_MASTER" ] || (echo 'KUBE_MASTER is not set' >&2; false) || exit 1
 		[ ! -z "$KUBE_CA_CERT_HASH" ] || (echo 'KUBE_CA_CERT_HASH is not set' >&2; false) || exit 1
 		set -x
 		loadImages &&
+		mkdir -p /persistent-volumes/jenkins &&
 		kubeadm join "$KUBE_MASTER" --token="$KUBE_TOKEN" --discovery-token-ca-cert-hash="$KUBE_CA_CERT_HASH" --ignore-preflight-errors=FileContent--proc-sys-net-bridge-bridge-nf-call-iptables
 	;;
 	*)
