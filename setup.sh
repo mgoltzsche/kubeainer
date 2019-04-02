@@ -55,7 +55,7 @@ initNode() {
 	[ ! -z "$KUBE_CA_CERT_HASH" ] || (echo 'KUBE_CA_CERT_HASH is not set' >&2; false) || exit 1
 	set -x
 	loadImages &&
-	mkdir -p /persistent-volumes/jenkins &&
+	#mkdir -p /persistent-volumes/jenkins &&
 	kubeadm join "$KUBE_MASTER" --token="$KUBE_TOKEN" --discovery-token-ca-cert-hash="$KUBE_CA_CERT_HASH" --ignore-preflight-errors=FileContent--proc-sys-net-bridge-bridge-nf-call-iptables
 }
 

@@ -1,0 +1,57 @@
+---
+{{- $envAll := . }}
+kind: Deployment
+apiVersion: extensions/v1beta1
+metadata:
+  name: ceph-rbd-provisioner
+spec:
+  replicas: {{ .Values.ceph.pod.replicas.rbd_provisioner }}
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+{{ tuple $envAll "ceph" "rbd-provisioner" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+    spec:
+      # TODO: add pod affinity
+      serviceAccount: rbd-provisioner
+      containers:
+        - name: ceph-rbd-provisioner
+          image: {{ .Values.ceph.images.rbd_provisioner }}
+          imagePullPolicy: {{ .Values.ceph.images.pull_policy }}
+          env:
+            - name: PROVISIONER_NAME
+              value: {{ .Values.ceph.storageclass.provisioner }}
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          command:
+            - /tmp/rbd-provisioner.sh
+          volumeMounts:
+            - name: ceph-bin
+              mountPath: /tmp/rbd-provisioner.sh
+              subPath: rbd-provisioner.sh
+              readOnly: true
+            - name: ceph-etc
+              mountPath: /etc/ceph/ceph.conf
+              subPath: ceph.conf
+              readOnly: true
+            - name: ceph-client-admin-keyring
+              mountPath: /etc/ceph/ceph.client.admin.keyring
+              subPath: ceph.client.admin.keyring
+              readOnly: true
+      volumes:
+        - name: ceph-bin
+          configMap:
+            name: ceph-bin
+            defaultMode: 0555
+        - name: ceph-etc
+          configMap:
+            name: ceph-etc
+            defaultMode: 0555
+        - name: ceph-client-admin-keyring
+          secret:
+            secretName: {{ .Values.ceph.secrets.keyrings.admin }}
+
+#TODO: add config map volumes: /etc/ceph/ceph.conf, (/etc/ceph/ceph.client.admin.keyring, /etc/ceph/ceph.keyring, /etc/ceph/keyring)
