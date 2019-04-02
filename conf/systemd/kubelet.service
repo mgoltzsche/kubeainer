@@ -6,7 +6,7 @@ Wants=docker.service
 
 [Service]
 ExecStart=/opt/bin/kubelet --bootstrap-kubeconfig=/etc/kubernetes/bootstrap-kubelet.conf --kubeconfig=/etc/kubernetes/kubelet.conf --config=/var/lib/kubelet/config.yaml --network-plugin=cni
-# --cgroup-driver=systemd --cgroup-root=/systemd
+# TODO: use systemd cgroup driver: --cgroup-driver=systemd --cgroup-root=/systemd
 Restart=always
 StartLimitInterval=0
 RestartSec=10

@@ -26,8 +26,8 @@ IMAGES='k8s.gcr.io/kube-apiserver:v1.13.2
 		quay.io/munnerz/apiextensions-ca-helper:v0.1.0
 		quay.io/kubernetes-ingress-controller/nginx-ingress-controller:0.22.0
 		gcr.io/kubernetes-helm/tiller:canary
-		jenkins/jenkins
-		jenkins/jnlp-slave'
+		jenkins/jenkins:lts-alpine
+		mgoltzsche/jenkins-jnlp-slave:latest'
 
 build() {
 	loadImages &&
@@ -35,9 +35,16 @@ build() {
 }
 
 loadImages() {
-	[ -f preloaded-images.tar ] ||
-	(echo ${IMAGES} | xargs -n1 docker image pull &&
-	docker save ${IMAGES} > preloaded-images.tar)
+	[ -f preloaded/images.tar ] ||
+	(mkdir -p preloaded &&
+	echo ${IMAGES} | xargs -n1 docker image pull &&
+	docker save ${IMAGES} > preloaded/images.tar)
+}
+
+reloadImages() {
+	docker save ${IMAGES} > preloaded/images.tar &&
+	docker exec kube-master docker load -i /preloaded/images.tar &&
+	docker exec kube-node   docker load -i /preloaded/images.tar
 }
 
 initCA() {
@@ -59,7 +66,7 @@ startMaster() {
 	KUBE_TOKEN=${KUBE_TOKEN:=$(docker run --rm ${KUBE_IMAGE} kubeadm token generate)} || exit 2
 	[ "${KUBE_TOKEN}" ] || { echo KUBE_TOKEN not set and cannot not be derived >&2; exit 1; }
 	initCA &&
-	mkdir -p -m 0755 docker-data &&
+	mkdir -p -m 0755 docker-data1 docker-data2 &&
 	docker run -d --name kube-master --rm --privileged --net=host \
 		-v /sys/fs/cgroup:/sys/fs/cgroup:rw \
 		-v /lib/modules:/lib/modules:ro \
@@ -69,7 +76,8 @@ startMaster() {
 		-v `pwd`/ca-cert/ca.key:/etc/kubernetes/pki/ca.key:ro \
 		-v `pwd`/ca-cert/ca.crt:/etc/kubernetes/pki/ca.crt:ro \
 		-v `pwd`/conf/manifests:/etc/kubernetes/custom:ro \
-		-v `pwd`/docker-data:/var/lib/docker:rw \
+		-v `pwd`/conf/helm:/etc/kubernetes/helm:rw \
+		-v `pwd`/docker-data1:/var/lib/docker:rw \
 		-v $HOME/.kube:/root/.kube \
 		--tmpfs /run \
 		--tmpfs /tmp \
@@ -90,6 +98,7 @@ startNode() {
 		-v /boot:/boot:ro \
 		-v ${RESOLV_CONF}:/etc/resolv.conf \
 		-v $HOME/.kube:/root/.kube \
+		-v `pwd`/docker-data2:/var/lib/docker:rw \
 		--tmpfs /run \
 		--tmpfs /tmp \
 		-e KUBE_TYPE=node \

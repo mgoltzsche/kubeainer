@@ -33,7 +33,7 @@ RUN yum -y update \
 VOLUME /var/lib/docker
 EXPOSE 2375
 
-RUN yum -y install iproute ebtables ethtool socat openssl && yum clean all
+RUN yum -y install iproute ebtables ethtool socat openssl xfsprogs && yum clean all
 
 # Install CNI plugins
 ARG CNI_VERSION=v0.6.0
@@ -41,13 +41,14 @@ RUN mkdir -p /opt/cni/bin \
 	&& curl -L "https://github.com/containernetworking/plugins/releases/download/${CNI_VERSION}/cni-plugins-amd64-${CNI_VERSION}.tgz" | tar -C /opt/cni/bin -xz
 
 # Install crictl (required for kubeadm / Kubelet Container Runtime Interface (CRI))
-ARG CRICTL_VERSION=v1.11.1
+ARG CRICTL_VERSION=v1.13.0
 RUN mkdir -p /opt/bin \
 	&& curl -L "https://github.com/kubernetes-incubator/cri-tools/releases/download/${CRICTL_VERSION}/crictl-${CRICTL_VERSION}-linux-amd64.tar.gz" | tar -C /opt/bin -xz
 
 # Install kubeadm, kubelet, kubectl
 # (for latest stable version see https://storage.googleapis.com/kubernetes-release/release/stable.txt)
-ARG K8S_VERSION=v1.13.2
+# helm v1.14.0 doesn't work with helm keyring generators / ceph-config-helper
+ARG K8S_VERSION=v1.13.5
 RUN mkdir -p /opt/bin \
 	&& cd /opt/bin \
 	&& curl -L --remote-name-all https://storage.googleapis.com/kubernetes-release/release/${K8S_VERSION}/bin/linux/amd64/{kubeadm,kubelet,kubectl} \
@@ -55,14 +56,12 @@ RUN mkdir -p /opt/bin \
 	&& mkdir -p /etc/kubernetes/manifests
 
 # Install helm
-ARG HELM_VERSION=v2.12.3
+ARG HELM_VERSION=v2.13.1
 RUN mkdir /tmp/helm \
 	&& curl -L https://storage.googleapis.com/kubernetes-helm/helm-${HELM_VERSION}-linux-amd64.tar.gz | tar -C /tmp/helm -xz \
 	&& cp /tmp/helm/linux-amd64/helm /opt/bin/helm \
 	&& chmod 744 /opt/bin/helm \
 	&& rm -rf /tmp/helm
-
-COPY preloaded-images.tar /preloaded-images.tar
 
 ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/opt/bin
 ENV KUBE_TYPE=master

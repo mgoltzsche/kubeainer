@@ -1,4 +1,6 @@
 ca-cert/
-preloaded-images.tar
+preloaded/
 docker-data*
+**/*.lock
+**/charts
 
