@@ -80,6 +80,18 @@ installHelm() {
 	#PROBLEM: resources with generated values change every rendering run -> old resources (as tests) not deleted
 }
 
+installRook() {
+	(
+	set -x
+	kubectl create namespace rook-ceph-system &&
+	helm install --name=rook-ceph --namespace rook-ceph-system /etc/kubernetes/helm/ceph-operator &&
+	kubectl wait --for condition=available --timeout 5m apiservice/v1.ceph.rook.io &&
+	kubectl create -f /etc/kubernetes/helm/ceph-operator/cluster.yaml &&
+	kubectl create -f /etc/kubernetes/helm/ceph-operator/storageclass.yaml &&
+	kubectl create -f /etc/kubernetes/helm/ceph-operator/pvc.yaml
+	)
+}
+
 # TODO: move into container image build
 updateDependencies() {
 	# Fetch ceph dependencies
@@ -108,6 +120,13 @@ updateDependencies() {
 		cd /etc/kubernetes/helm/cephfs &&
 		helm dependencies update
 	) || return 1
+
+	# Fetch ceph-rook dependencies
+	[ -f /etc/kubernetes/helm/ceph-operator/charts ] || (
+		helm repo add rook-stable https://charts.rook.io/stable &&
+		cd /etc/kubernetes/helm/ceph-operator &&
+		helm dependencies update
+	)
 }
 
 installCephBase() {
@@ -131,79 +150,10 @@ installCephMaster() {
 	installCephBase &&
 	kubectl label node $(hostname) ceph-mon=enabled ceph-mgr=enabled ceph-mds=enabled &&
 	setupOSDDevice &&
-	# Using bluestore (separate disk)
-	helm install --name=ceph local/ceph --namespace=ceph -f - <<-EOF
-		network:
-		  public: 10.23.0.0/12
-		  cluster: 10.23.0.0/12
-		
-		osd_devices:
-		  - name: data-disk
-		    device: /root/data-disk
-		    zap: "1"
-		
-		storageclass:
-		  name: ceph-rbd
-		  pool: rbd
-		  user_id: k8s
-	EOF
-	# Using filestore on ext4 (limited max name len):
-	# cd ceph && helm template . --namespace=ceph -f - <<-EOF
-	kubectl create secret -n ceph generic ceph-bootstrap-mgr-keyring
 	helm install --name=ceph --namespace=ceph /etc/kubernetes/helm/cephfs
-	helm install --name=ceph local/ceph --namespace=ceph -f - <<-EOF
-		images:
-		  ks_user: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
-		  ks_service: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
-		  ks_endpoints: docker.io/kolla/ubuntu-source-heat-engine:3.0.3
-		  dep_check: docker.io/kolla/ubuntu-source-kubernetes-entrypoint:4.0.0
-		  bootstrap: docker.io/ceph/daemon:tag-build-master-luminous-ubuntu-16.04
-		  daemon: docker.io/ceph/daemon:tag-build-master-luminous-ubuntu-16.04
-		  ceph_config_helper: docker.io/port/ceph-config-helper:v1.10.3
-		  rbd_provisioner: quay.io/external_storage/rbd-provisioner:v2.1.1-k8s1.11
-		  minimal: docker.io/alpine:latest
-		
-		bootstrap:
-		  enabled: true
-		
-		network:
-		  public: 10.23.0.0/12
-		  cluster: 10.23.0.0/12
-		
-		osd_directory:
-		  enabled: true
-		conf:
-		  ceph:
-		    config:
-		      osd:
-		        # Required on ext4
-		        osd_max_object_name_len: 256
-		        osd_max_object_namespace_len: 64
-		
-		storageclass:
-		  name: ceph-rbd
-		  pool: rbd
-		  # TODO: change or create user:
-		  user_id: k8s
-		
-		ceph_mgr_enabled_modules:
-		  - restful
-		  - status
-		  - dashboard
-		
-		ceph_mgr_modules_config:
-		  dashboard:
-		    port: 7000
-		  localpool:
-		    failure_domain: host
-		    subtree: rack
-		    pg_num: "128"
-		    num_rep: "3"
-		    min_size: "2"
-	EOF
 	
 	# Copy ceph client key to default namespace
-	kubectl -n ceph get secrets/pvc-ceph-client-key -o json | grep -v '"namespace"' | kubectl create -f -
+	#kubectl -n ceph get secrets/pvc-ceph-client-key -o json | grep -v '"namespace"' | kubectl create -f -
 }
 
 installCephNode() {
