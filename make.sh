@@ -68,7 +68,6 @@ startMaster() {
 	initCA &&
 	mkdir -p -m 0755 docker-data1 docker-data2 &&
 	docker run -d --name kube-master --rm --privileged --net=host \
-		-v /sys/fs/cgroup:/sys/fs/cgroup:rw \
 		-v /lib/modules:/lib/modules:ro \
 		-v /boot:/boot:ro \
 		-v /etc/machine-id:/etc/machine-id:ro \
@@ -92,8 +91,6 @@ startNode() {
 	[ "${KUBE_TOKEN}" ] || { echo KUBE_TOKEN not set >&2; exit 1; }
 	KUBE_CA_CERT_HASH=${KUBE_CA_CERT_HASH:=sha256:$(openssl x509 -in ca-cert/ca.crt -noout -pubkey | openssl rsa -pubin -outform DER 2>/dev/null | sha256sum | cut -d' ' -f1)} || exit 2
 	docker run -d --name kube-node --hostname kube-node --rm --privileged --net=kubeclusternet --link kube-master \
-		-v /sys/fs/cgroup:/sys/fs/cgroup:ro \
-		-v /sys/fs/cgroup/systemd:/sys/fs/cgroup/systemd:rw \
 		-v /lib/modules:/lib/modules:ro \
 		-v /boot:/boot:ro \
 		-v ${RESOLV_CONF}:/etc/resolv.conf \
@@ -153,8 +150,11 @@ adminToken() {
 }
 
 if [ "$1" ]; then
-	set -x
-	$@
+	while [ $# -gt 0 ]; do
+		CMD="$1"
+		shift
+		(set -x; $CMD)
+	done
 else
 	set -x
 	build &&

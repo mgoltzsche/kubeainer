@@ -1,0 +1,34 @@
+elastic-stack:
+  elasticsearch:
+    enabled: true
+    master:
+      persistence:
+        storageClass: rook-ceph-block
+        size: '200Mi' # 4Gi
+    data:
+      persistence:
+        storageClass: rook-ceph-block
+        size: '500Mi' # 30 Gi
+  kibana:
+    enabled: true
+    env:
+      ELASTICSEARCH_URL: http://http.default.svc.cluster.local:9200
+  logstash:
+    enabled: false
+  fluentd:
+    enabled: true
+  fluent-bit:
+    enabled: true
+  fluentd-elasticsearch:
+    enabled: true
+  elasticsearch-curator:
+    enabled: true
+  elasticsearch-exporter:
+    enabled: true
+
+# TODO: use fluentd instead of logstash
+# TODO: fix ceph volume mount:
+# rook-ceph-agent log:
+# rbd map replicapool/pvc- exec: Timeout waiting for process rbd to return. Sending interrupt signal to the process
+# -> see https://rook.io/docs/rook/master/common-issues.html#volume-mounting
+# -> or simply due to shared /dev?
