@@ -56,10 +56,9 @@ installKubernetesDashboard() {
 
 installCertManager() {
 	# Setup cert-manager issuer for namespace only (use namespaced issuer "ClusterIssuer" for single-tenant cluster)
-	# See http://docs.cert-manager.io/en/release-0.6/getting-started/2-installing.html
-	kubectl apply --wait=true --timeout=2m -f https://raw.githubusercontent.com/jetstack/cert-manager/release-0.6/deploy/manifests/cert-manager.yaml &&
-	kubectl wait --for condition=available --timeout 5m -n cert-manager deploy cert-manager cert-manager-webhook &&
-	kubectl wait --for condition=complete --timeout 5m -n cert-manager job cert-manager-webhook-ca-sync &&
+	# See https://docs.cert-manager.io/en/release-0.7/getting-started/index.html
+	kubectl apply --wait=true --timeout=2m -f https://raw.githubusercontent.com/jetstack/cert-manager/release-0.7/deploy/manifests/cert-manager.yaml &&
+	kubectl wait --for condition=available --timeout 5m -n cert-manager deploy cert-manager cert-manager-webhook cert-manager-cainjector &&
 
 	# Add ca as secret for ca-issuer (convert key since kubernetes tls secret only supports pkcs1 format)
 	openssl rsa -in /etc/kubernetes/pki/ca.key -out /etc/kubernetes/pki/ca-rsa.key &&
