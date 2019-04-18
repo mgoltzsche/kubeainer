@@ -33,7 +33,7 @@ RUN yum -y update \
 VOLUME /var/lib/docker
 EXPOSE 2375
 
-RUN yum -y install iproute ebtables ethtool socat openssl xfsprogs && yum clean all
+RUN yum -y install iproute ebtables ethtool socat openssl xfsprogs e4fsprogs && yum clean all
 
 # Install CNI plugins
 ARG CNI_VERSION=v0.6.0

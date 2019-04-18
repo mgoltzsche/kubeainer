@@ -3,13 +3,13 @@
 set -e
 	: ${KUBE_IMAGE:=local/kubernetes}
 	: ${KUBE_NET:=10.23.0.0/16}
-	#: ${KUBE_MASTER_IP:=10.23.0.2}
-	: ${KUBE_MASTER_IP:=`ip -4 route get 8.8.8.8 | awk {'print $7'} | tr -d '\n'`}
+	: ${KUBE_MASTER_IP:=10.23.0.2}
+	#: ${KUBE_MASTER_IP:=`ip -4 route get 8.8.8.8 | awk {'print $7'} | tr -d '\n'`}
 	# Use original resolv.conf (uncached)
 	: ${RESOLV_CONF:=$(find /etc/resolvconf/resolv.conf.d/original /run/systemd/resolve/resolv.conf /etc/resolv.conf 2>/dev/null | head -1)}
 	: ${CA_CN:=example.org}
 
-K8S_VERSION=v1.13.2
+K8S_VERSION=v1.13.5
 HELM_VERSION=v2.12.3
 IMAGES='k8s.gcr.io/kube-apiserver:v1.13.2
 		k8s.gcr.io/kube-proxy:v1.13.2
@@ -67,10 +67,15 @@ startMaster() {
 	[ "${KUBE_TOKEN}" ] || { echo KUBE_TOKEN not set and cannot not be derived >&2; exit 1; }
 	initCA &&
 	mkdir -p -m 0755 docker-data1 docker-data2 &&
-	docker run -d --name kube-master --rm --privileged --net=host \
+	# -v /etc/machine-id:/etc/machine-id:ro --net=host
+	# TODO: use fix IP, see below
+	docker run -d --name kube-master --rm --privileged \
+		--net=kubeclusternet --ip ${KUBE_MASTER_IP} --hostname kube-master \
+		-v /etc/machine-id:/etc/machine-id:ro \
 		-v /lib/modules:/lib/modules:ro \
 		-v /boot:/boot:ro \
-		-v /etc/machine-id:/etc/machine-id:ro \
+		-v /dev:/host/dev \
+		-v /sys/bus:/sys/bus \
 		-v ${RESOLV_CONF}:/etc/resolv.conf:ro \
 		-v `pwd`/ca-cert/ca.key:/etc/kubernetes/pki/ca.key:ro \
 		-v `pwd`/ca-cert/ca.crt:/etc/kubernetes/pki/ca.crt:ro \
@@ -83,17 +88,20 @@ startMaster() {
 		-e KUBE_TYPE=master \
 		-e KUBE_TOKEN="${KUBE_TOKEN}" \
 		${KUBE_IMAGE}
-	#--net=kubeclusternet --ip ${KUBE_MASTER_IP}
+	#--net=kubeclusternet --ip ${KUBE_MASTER_IP} --hostname kube-master
 }
 
 startNode() {
 	[ "${KUBE_MASTER_IP}" ] || { echo KUBE_MASTER_IP not set >&2; exit 1; }
 	[ "${KUBE_TOKEN}" ] || { echo KUBE_TOKEN not set >&2; exit 1; }
 	KUBE_CA_CERT_HASH=${KUBE_CA_CERT_HASH:=sha256:$(openssl x509 -in ca-cert/ca.crt -noout -pubkey | openssl rsa -pubin -outform DER 2>/dev/null | sha256sum | cut -d' ' -f1)} || exit 2
-	docker run -d --name kube-node --hostname kube-node --rm --privileged --net=kubeclusternet --link kube-master \
+	docker run -d --name kube-node --hostname kube-node --rm --privileged \
+		--net=kubeclusternet --link kube-master \
 		-v /lib/modules:/lib/modules:ro \
 		-v /boot:/boot:ro \
-		-v ${RESOLV_CONF}:/etc/resolv.conf \
+		-v /dev:/host/dev \
+		-v /sys/bus:/sys/bus \
+		-v ${RESOLV_CONF}:/etc/resolv.conf:ro \
 		-v $HOME/.kube:/root/.kube \
 		-v `pwd`/docker-data2:/var/lib/docker:rw \
 		--tmpfs /run \

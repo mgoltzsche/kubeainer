@@ -7,9 +7,12 @@ OnFailure=stop.service
 
 [Service]
 Type=oneshot
+RemainAfterExit=true
 EnvironmentFile=/run/env
-ExecStart=/setup.sh
 StandardOutput=journal+console
+ExecStart=/setup.sh
+# see https://kubernetes.io/docs/tasks/administer-cluster/safely-drain-node
+ExecStop=/opt/bin/kubectl drain --ignore-daemonsets --delete-local-data %H
 
 [Install]
 WantedBy=multi-user.target
