@@ -29,8 +29,8 @@ initMaster() {
 	#installKubernetesDashboard &&
 	kubectl apply -f /etc/kubernetes/custom &&
 	installHelm &&
-	installRookCeph
-	#installElasticStack
+	installRookCeph &&
+	installElasticStack
 	#installJenkins
 }
 

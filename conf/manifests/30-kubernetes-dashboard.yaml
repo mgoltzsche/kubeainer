@@ -156,7 +156,7 @@ metadata:
   namespace: kube-system
   annotations:
     # name of issuer used to generate SSL certificate
-    # (see http://docs.cert-manager.io/en/release-0.6/reference/ingress-shim.html)
+    # (see http://docs.cert-manager.io/en/release-0.7/reference/ingress-shim.html)
     certmanager.k8s.io/cluster-issuer: cluster-ca-issuer
 spec:
   rules:

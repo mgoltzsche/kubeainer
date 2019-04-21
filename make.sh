@@ -69,13 +69,13 @@ startMaster() {
 	mkdir -p -m 0755 docker-data1 docker-data2 &&
 	# -v /etc/machine-id:/etc/machine-id:ro --net=host
 	# TODO: use fix IP, see below
+	# -v /sys/bus:/sys/bus
 	docker run -d --name kube-master --rm --privileged \
 		--net=kubeclusternet --ip ${KUBE_MASTER_IP} --hostname kube-master \
 		-v /etc/machine-id:/etc/machine-id:ro \
 		-v /lib/modules:/lib/modules:ro \
 		-v /boot:/boot:ro \
 		-v /dev:/host/dev \
-		-v /sys/bus:/sys/bus \
 		-v ${RESOLV_CONF}:/etc/resolv.conf:ro \
 		-v `pwd`/ca-cert/ca.key:/etc/kubernetes/pki/ca.key:ro \
 		-v `pwd`/ca-cert/ca.crt:/etc/kubernetes/pki/ca.crt:ro \
@@ -100,7 +100,6 @@ startNode() {
 		-v /lib/modules:/lib/modules:ro \
 		-v /boot:/boot:ro \
 		-v /dev:/host/dev \
-		-v /sys/bus:/sys/bus \
 		-v ${RESOLV_CONF}:/etc/resolv.conf:ro \
 		-v $HOME/.kube:/root/.kube \
 		-v `pwd`/docker-data2:/var/lib/docker:rw \
