@@ -26,11 +26,11 @@ initMaster() {
 
 	installWeaveNetworking &&
 	installCertManager &&
-	#installKubernetesDashboard &&
 	kubectl apply -f /etc/kubernetes/custom &&
-	installHelm &&
-	installRookCeph &&
-	installElasticStack
+	installLinkerd &&
+	installHelm
+	#installRookCeph &&
+	#installElasticStack
 	#installJenkins
 }
 
@@ -48,12 +48,6 @@ installWeaveNetworking() {
 	#kubectl wait -n kube-system --for condition=ready pods -l name=weave-net &&
 }
 
-installKubernetesDashboard() {
-	true
-	#kubectl apply -f https://raw.githubusercontent.com/kubernetes/dashboard/master/aio/deploy/recommended/kubernetes-dashboard.yaml &&
-	#kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/master/deploy/provider/baremetal/service-nodeport.yaml
-}
-
 installCertManager() {
 	# Setup cert-manager issuer for namespace only (use namespaced issuer "ClusterIssuer" for single-tenant cluster)
 	# See https://docs.cert-manager.io/en/release-0.7/getting-started/index.html
@@ -67,6 +61,43 @@ installCertManager() {
 
 	# Wait for cert-manager apiservice to become available (before applying issuer)
 	kubectl wait --for condition=available --timeout 7m apiservice v1beta1.admission.certmanager.k8s.io
+}
+
+installLinkerd() {
+	kubectl wait --for condition=available apiservice/v1beta1.admissionregistration.k8s.io &&
+	linkerd check --pre &&
+	linkerd install --proxy-auto-inject | kubectl apply -f - &&
+	linkerd check &&
+	kubectl apply -f - <<-EOF
+# See https://linkerd.io/2/tasks/exposing-dashboard/
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: web-ingress
+  namespace: linkerd
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      proxy_set_header l5d-dst-override $service_name.$namespace.svc.cluster.local:8084;
+      proxy_set_header Origin "";
+      proxy_hide_header l5d-remote-ip;
+      proxy_hide_header l5d-server-id;
+    #nginx.ingress.kubernetes.io/auth-type: basic
+    #nginx.ingress.kubernetes.io/auth-secret: web-ingress-auth
+    #nginx.ingress.kubernetes.io/auth-realm: "Authentication Required"
+spec:
+  rules:
+  - host: linkerd.algorythm.de
+    http:
+      paths:
+      - backend:
+          serviceName: linkerd-web
+          servicePort: 8084
+  tls:
+    - hosts:
+        - linkerd.algorythm.de
+      secretName: linkerd-dashboard-tls
+	EOF
 }
 
 installHelm() {
