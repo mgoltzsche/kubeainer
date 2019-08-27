@@ -17,18 +17,18 @@ initMaster() {
 	# ignoring missing bridge feature since it just doesn't show up within a network namespace due to a kernel bug but is functional
 	set -x
 	loadImages &&
-	kubeadm init --token="$KUBE_TOKEN" --ignore-preflight-errors=FileContent--proc-sys-net-bridge-bridge-nf-call-iptables &&
+	kubeadm init --token="$KUBE_TOKEN" --pod-network-cidr=10.244.0.0/16 --ignore-preflight-errors=FileContent--proc-sys-net-bridge-bridge-nf-call-iptables &&
 	mkdir -p /root/.kube &&
 	cp -f /etc/kubernetes/admin.conf /root/.kube/config &&
 
 	# Untaint master node to schedule pods
 	kubectl taint node $(hostname) node-role.kubernetes.io/master-
 
-	installWeaveNetworking &&
-	installCertManager &&
-	kubectl apply -f /etc/kubernetes/custom &&
-	installLinkerd &&
-	installHelm
+	#installWeaveNetworking
+	#installCertManager &&
+	#kubectl apply -f /etc/kubernetes/custom &&
+	#installLinkerd &&
+	#installHelm
 	#installRookCeph &&
 	#installElasticStack
 	#installJenkins
@@ -48,19 +48,40 @@ installWeaveNetworking() {
 	#kubectl wait -n kube-system --for condition=ready pods -l name=weave-net &&
 }
 
+installFlannel() {
+	# Alternative: requires kubeadm init --pod-network-cidr=10.244.0.0/16 set
+	# see https://github.com/coreos/flannel/blob/master/Documentation/kubernetes.md
+	kubectl apply --wait --timeout 2m -f https://raw.githubusercontent.com/coreos/flannel/v0.11.0/Documentation/kube-flannel.yml
+}
+
+# args: MANIFESTURL [TIMEOUT]
+waitUntilAvailable() {
+	# TODO: make it work for both cases: a) no match b) matches
+	kubectl get -f "$1" -o jsonpath='{range .items[*]}{.kind}/{.metadata.name} -n "{.metadata.namespace}"{"\n"}{end}' |
+		grep -E '^Deployment/|APIService/' |
+		while read LINE; do
+			kubectl wait --for condition=available --timeout "${2:-2m}" $LINE || exit 1
+		done
+	
+	#kubectl get -f "$1" -o go-template=$'{{range .items}}{{if (eq .kind "Deployment" "APIService")}}-n "{{if .metadata.namespace}}{{.metadata.namespace}}{{end}}" {{.kind}}/{{.metadata.name}}\n{{end}}{{end}}' |
+	#	xargs -n3 kubectl wait --for condition=available --timeout "${2:-2m}"
+}
+
 installCertManager() {
-	# Setup cert-manager issuer for namespace only (use namespaced issuer "ClusterIssuer" for single-tenant cluster)
 	# See https://docs.cert-manager.io/en/release-0.7/getting-started/index.html
-	kubectl apply --wait=true --timeout=2m -f https://raw.githubusercontent.com/jetstack/cert-manager/release-0.7/deploy/manifests/cert-manager.yaml &&
-	kubectl wait --for condition=available --timeout 5m -n cert-manager deploy cert-manager cert-manager-webhook cert-manager-cainjector &&
-
-	# Add ca as secret for ca-issuer (convert key since kubernetes tls secret only supports pkcs1 format)
-	openssl rsa -in /etc/kubernetes/pki/ca.key -out /etc/kubernetes/pki/ca-rsa.key &&
-	kubectl create secret tls cluster-ca-key-pair --cert=/etc/kubernetes/pki/ca.crt --key=/etc/kubernetes/pki/ca-rsa.key --namespace=cert-manager &&
-	kubectl create secret tls ca-key-pair --cert=/etc/kubernetes/pki/ca.crt --key=/etc/kubernetes/pki/ca-rsa.key --namespace=default &&
-
-	# Wait for cert-manager apiservice to become available (before applying issuer)
-	kubectl wait --for condition=available --timeout 7m apiservice v1beta1.admission.certmanager.k8s.io
+	# see for kustomize https://blog.jetstack.io/blog/kustomize-cert-manager/
+	# (kustomize currently doesn't work for complete cert-manager setup: https://github.com/kubernetes-sigs/kustomize/issues/821)
+	#kubectl apply --wait --timeout=2m -f https://raw.githubusercontent.com/jetstack/cert-manager/release-0.7/deploy/manifests/cert-manager.yaml &&
+	#kubectl kustomize /etc/kubernetes/kustomize/cert-manager/overlays/production_old | kubectl apply --wait --timeout=2m -f - --validate=false
+	kubectl apply --wait --timeout=2m -rf /etc/kubernetes/kustomize/cert-manager &&
+	waitUntilAvailable /etc/kubernetes/kustomize/cert-manager 5m &&
+	kubectl apply --wait --timeout=30s -f /etc/kubernetes/kustomize/cert-manager-issuer
+	
+	#kubectl wait --for condition=available --timeout 5m -n cert-manager \
+	#	deploy/cert-manager \
+	#	deploy/cert-manager-webhook \
+	#	deploy/cert-manager-cainjector \
+	#	apiservice/v1beta1.admission.certmanager.k8s.io &&
 }
 
 installLinkerd() {
@@ -138,7 +159,7 @@ installElasticStack() {
 installJenkins() {
 	# Fetch jenkins dependendencies
 	[ -f /etc/kubernetes/helm/jenkins/charts ] || (
-		cd /etc/kubernetes/helm/cephfs &&
+		cd /etc/kubernetes/helm/jenkins &&
 		helm dependencies update
 	) || return 1
 

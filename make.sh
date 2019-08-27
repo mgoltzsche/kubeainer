@@ -9,8 +9,8 @@ set -e
 	: ${RESOLV_CONF:=$(find /etc/resolvconf/resolv.conf.d/original /run/systemd/resolve/resolv.conf /etc/resolv.conf 2>/dev/null | head -1)}
 	: ${CA_CN:=example.org}
 
-K8S_VERSION=v1.13.5
-HELM_VERSION=v2.12.3
+K8S_VERSION=v1.14.1
+HELM_VERSION=v2.13.1
 IMAGES='k8s.gcr.io/kube-apiserver:v1.13.2
 		k8s.gcr.io/kube-proxy:v1.13.2
 		k8s.gcr.io/kube-controller-manager:v1.13.2
@@ -81,6 +81,7 @@ startMaster() {
 		-v `pwd`/ca-cert/ca.crt:/etc/kubernetes/pki/ca.crt:ro \
 		-v `pwd`/conf/manifests:/etc/kubernetes/custom:ro \
 		-v `pwd`/conf/helm:/etc/kubernetes/helm:rw \
+		-v `pwd`/conf/kustomize:/etc/kubernetes/kustomize:rw \
 		-v `pwd`/docker-data1:/var/lib/docker:rw \
 		-v $HOME/.kube:/root/.kube \
 		--tmpfs /run \
