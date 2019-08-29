@@ -7,6 +7,27 @@
 #RUN CGO_ENABLED=0 GOOS=linux go install -a -ldflags '-extldflags "-static"' ./cmd/...
 
 
+# Build CRI-O
+#FROM saschagrunert/crionix:1.0.0 AS crio
+FROM golang:1.12-alpine3.10 AS crio
+RUN apk add --update --no-cache git make gcc pkgconf musl-dev \
+	btrfs-progs btrfs-progs-dev libassuan-dev lvm2-dev device-mapper \
+	glib-static libc-dev gpgme-dev protobuf-dev protobuf-c-dev \
+	libseccomp-dev libselinux-dev ostree-dev openssl iptables bash \
+	go-md2man
+ARG CRIO_VERSION=v1.15.0
+RUN git clone --branch=$CRIO_VERSION https://github.com/cri-o/cri-o /go/src/github.com/cri-o/cri-o
+WORKDIR /go/src/github.com/cri-o/cri-o
+#RUN nix-build cri-o/nix --argstr revision ${CRIO_VERSION}
+RUN set -ex; \
+    make bin/crio SHRINKFLAGS='-s -w -extldflags "-static"' BUILDTAGS='seccomp selinux varlink exclude_graphdriver_devicemapper containers_image_ostree_stub containers_image_openpgp'; \
+	bin/crio --help >/dev/null; \
+	[ "$(ldd bin/crio | wc -l)" -eq 0 ] || (ldd bin/crio; false)
+
+
+FROM mgoltzsche/podman:1.5 AS podman
+
+
 FROM centos:7
 
 # Install systemd
@@ -23,15 +44,6 @@ RUN yum -y update && yum -y install systemd && yum clean all \
 	&& rm -f /usr/lib/systemd/system/*.wants/systemd-update-utmp-runlevel.service
 VOLUME [ "/sys/fs/cgroup" ]
 STOPSIGNAL SIGRTMIN+3
-
-# Install docker
-RUN yum -y update \
-	&& yum -y install yum-utils \
-	&& yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo \
-	&& yum -y update && yum -y install docker-ce-18.06.1.ce-3.el7 \
-	&& yum clean all
-VOLUME /var/lib/docker
-EXPOSE 2375
 
 RUN yum -y install iproute ebtables ethtool socat openssl xfsprogs e4fsprogs && yum clean all
 
@@ -52,33 +64,38 @@ RUN mkdir -p /opt/bin \
 #ARG K8S_VERSION=v1.13.5
 #ARG K8S_VERSION=v1.14.3
 ARG K8S_VERSION=v1.15.3
+ENV K8S_VERSION=$K8S_VERSION
 RUN mkdir -p /opt/bin \
 	&& cd /opt/bin \
 	&& curl -L --remote-name-all https://storage.googleapis.com/kubernetes-release/release/${K8S_VERSION}/bin/linux/amd64/{kubeadm,kubelet,kubectl} \
 	&& chmod +x kubeadm kubelet kubectl \
 	&& mkdir -p /etc/kubernetes/manifests
 
-# Install helm
-ARG HELM_VERSION=v2.14.1
-RUN mkdir /tmp/helm \
-	&& curl -L https://storage.googleapis.com/kubernetes-helm/helm-${HELM_VERSION}-linux-amd64.tar.gz | tar -C /tmp/helm -xz \
-	&& cp /tmp/helm/linux-amd64/helm /opt/bin/helm \
-	&& chmod 744 /opt/bin/helm \
-	&& rm -rf /tmp/helm
+# Install CRI-O & podman
+COPY --from=crio /go/src/github.com/cri-o/cri-o/bin/crio /usr/local/bin/crio
+COPY --from=crio /go/src/github.com/cri-o/cri-o/contrib/crio-wipe /usr/local/libexec/crio/crio-wipe
+COPY --from=crio /go/src/github.com/cri-o/cri-o/contrib/sysconfig/crio /etc/sysconfig/crio
+COPY --from=podman /usr/local/bin/runc /usr/local/bin/podman /usr/local/bin/
+COPY --from=podman /usr/libexec/podman/conmon /usr/libexec/podman/conmon
+#COPY --from=podman /usr/libexec/cni/loopback /usr/libexec/cni/flannel /usr/libexec/cni/bridge /usr/libexec/cni/portmap /opt/cni/bin/
+COPY --from=podman /etc/containers /etc/containers
+RUN set -ex; \
+	mkdir /etc/crio /var/lib/crio; \
+	crio --config="" config > /etc/crio/crio.conf; \
+	ln -s /usr/libexec/podman/conmon /usr/local/libexec/crio/conmon
+RUN set -ex; crio --help >/dev/null; runc --help >/dev/null; podman --help >/dev/null
+COPY conf/sysctl.d /etc/sysctl.d
+VOLUME ["/var/lib/containers"]
 
 ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/opt/bin
 ENV KUBE_TYPE=master
 
-# Install linkerd
-ARG LINKERD_VERSION=stable-2.3.2
-RUN curl -L https://github.com/linkerd/linkerd2/releases/download/${LINKERD_VERSION}/linkerd2-cli-${LINKERD_VERSION}-linux > /opt/bin/linkerd \
-	&& chmod +x /opt/bin/linkerd
-
 #COPY conf/net /etc/cni/net.d
 
 # Enable systemd services
+COPY start-kubelet.sh /opt/bin/start-kubelet
 COPY conf/systemd/* /etc/systemd/system/
-RUN systemctl enable docker kubelet kubeadm
+RUN systemctl enable kubelet kubeadm crio crio-wipe crio-shutdown
 
 # Make init script appear as systemd init process to support OCI hooks oci-systemd-hook and oci-register-machine
 RUN mv /usr/sbin/init /usr/sbin/systemd

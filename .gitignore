@@ -1,6 +1,7 @@
 ca-cert/
 preloaded/
-docker-data*
+crio-data*
+kubeconfig.yaml
 **/*.lock
 **/charts
 

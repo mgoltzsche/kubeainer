@@ -3,4 +3,5 @@ Description=stop: terminates systemd
 
 [Service]
 Type=oneshot
-ExecStart=/bin/kill -2 1
+#ExecStart=/bin/kill -2 1
+ExecStart=/bin/true

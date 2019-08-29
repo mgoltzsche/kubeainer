@@ -1,0 +1,15 @@
+[Unit]
+Description=CRI-O Auto Update Script
+Before=crio.service
+RequiresMountsFor=/var/lib/containers
+
+[Service]
+# On a real node the storage dir should be wiped when a new crio version
+# is started. However in this containerized setup /var/lib/containers
+# cannot be removed since it is mounted
+#ExecStart=/bin/bash /usr/local/libexec/crio/crio-wipe/crio-wipe.bash
+ExecStart=/bin/true
+Type=oneshot
+
+[Install]
+WantedBy=multi-user.target

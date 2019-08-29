@@ -66,11 +66,11 @@ startMaster() {
 	KUBE_TOKEN=${KUBE_TOKEN:=$(docker run --rm ${KUBE_IMAGE} kubeadm token generate)} || exit 2
 	[ "${KUBE_TOKEN}" ] || { echo KUBE_TOKEN not set and cannot not be derived >&2; exit 1; }
 	initCA &&
-	mkdir -p -m 0755 docker-data1 docker-data2 &&
+	mkdir -p -m 0755 crio-data1 crio-data2 &&
 	# -v /etc/machine-id:/etc/machine-id:ro --net=host
 	# TODO: use fix IP, see below
 	# -v /sys/bus:/sys/bus
-	docker run -d --name kube-master --rm --privileged \
+	docker run -it --name kube-master --rm --privileged \
 		--net=kubeclusternet --ip ${KUBE_MASTER_IP} --hostname kube-master \
 		-v /etc/machine-id:/etc/machine-id:ro \
 		-v /lib/modules:/lib/modules:ro \
@@ -82,8 +82,8 @@ startMaster() {
 		-v `pwd`/conf/manifests:/etc/kubernetes/custom:ro \
 		-v `pwd`/conf/helm:/etc/kubernetes/helm:rw \
 		-v `pwd`/conf/kustomize:/etc/kubernetes/kustomize:rw \
-		-v `pwd`/docker-data1:/var/lib/docker:rw \
-		-v $HOME/.kube:/root/.kube \
+		-v `pwd`/crio-data1:/var/lib/containers:rw \
+		-v `pwd`:/output:rw \
 		--tmpfs /run \
 		--tmpfs /tmp \
 		-e KUBE_TYPE=master \
@@ -104,6 +104,7 @@ startNode() {
 		-v ${RESOLV_CONF}:/etc/resolv.conf:ro \
 		-v $HOME/.kube:/root/.kube \
 		-v `pwd`/docker-data2:/var/lib/docker:rw \
+		-v `pwd`/crio-data2:/var/lib/containers:rw \
 		--tmpfs /run \
 		--tmpfs /tmp \
 		-e KUBE_TYPE=node \
@@ -126,7 +127,7 @@ stopMaster() {
 clean() {
 	stopNode || true
 	stopMaster || true
-	netRemove
+	netRemove || true
 }
 
 installKubectl() {
