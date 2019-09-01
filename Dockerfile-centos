@@ -43,7 +43,6 @@ RUN yum -y update && yum -y install systemd && yum clean all \
 	&& rm -f /lib/systemd/system/anaconda.target.wants/* \
 	&& rm -f /usr/lib/systemd/system/*.wants/systemd-update-utmp-runlevel.service
 VOLUME [ "/sys/fs/cgroup" ]
-STOPSIGNAL SIGRTMIN+3
 
 RUN yum -y install iproute ebtables ethtool socat openssl xfsprogs e4fsprogs && yum clean all
 
@@ -102,4 +101,5 @@ RUN mv /usr/sbin/init /usr/sbin/systemd
 COPY entrypoint.sh /usr/sbin/init
 COPY setup.sh /setup.sh
 
+STOPSIGNAL 2
 CMD ["/usr/sbin/init"]
