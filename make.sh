@@ -48,7 +48,11 @@ reloadImages() {
 }
 
 initCA() {
-	[ -f ca-cert/ca.key ] || ./ca.sh initca ${CA_CN}
+	[ ! -f ca-cert/ca.key ] || return 0
+	mkdir -p ca-cert
+	openssl req -x509 -nodes -newkey rsa:2048 -subj "/CN=$CA_CN" \
+		-config ca.conf -extensions v3_ca \
+		-keyout ca-cert/ca.key -out ca-cert/ca.crt
 }
 
 netCreate() {

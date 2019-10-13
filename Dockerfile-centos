@@ -15,7 +15,7 @@ RUN apk add --update --no-cache git make gcc pkgconf musl-dev \
 	glib-static libc-dev gpgme-dev protobuf-dev protobuf-c-dev \
 	libseccomp-dev libselinux-dev ostree-dev openssl iptables bash \
 	go-md2man
-ARG CRIO_VERSION=v1.15.0
+ARG CRIO_VERSION=v1.15.2
 RUN git clone --branch=$CRIO_VERSION https://github.com/cri-o/cri-o /go/src/github.com/cri-o/cri-o
 WORKDIR /go/src/github.com/cri-o/cri-o
 #RUN nix-build cri-o/nix --argstr revision ${CRIO_VERSION}
@@ -47,22 +47,18 @@ VOLUME [ "/sys/fs/cgroup" ]
 RUN yum -y install iproute ebtables ethtool socat openssl xfsprogs e4fsprogs && yum clean all
 
 # Install CNI plugins
-ARG CNI_VERSION=v0.7.1
+ARG CNI_PLUGIN_VERSION=v0.8.2
 RUN mkdir -p /opt/cni/bin \
-	&& curl -L "https://github.com/containernetworking/plugins/releases/download/${CNI_VERSION}/cni-plugins-amd64-${CNI_VERSION}.tgz" | tar -C /opt/cni/bin -xz
+	&& curl -L "https://github.com/containernetworking/plugins/releases/download/${CNI_PLUGIN_VERSION}/cni-plugins-linux-amd64-${CNI_PLUGIN_VERSION}.tgz" | tar -C /opt/cni/bin -xz
 
 # Install crictl (required for kubeadm / Kubelet Container Runtime Interface (CRI))
-#ARG CRICTL_VERSION=v1.13.0
-ARG CRICTL_VERSION=v1.15.0
+ARG CRICTL_VERSION=v1.16.1
 RUN mkdir -p /opt/bin \
 	&& curl -L "https://github.com/kubernetes-sigs/cri-tools/releases/download/${CRICTL_VERSION}/crictl-${CRICTL_VERSION}-linux-amd64.tar.gz" | tar -C /opt/bin -xz
 
 # Install kubeadm, kubelet, kubectl
 # (for latest stable version see https://storage.googleapis.com/kubernetes-release/release/stable.txt)
-# helm v1.14.0 doesn't work with helm keyring generators / ceph-config-helper
-#ARG K8S_VERSION=v1.13.5
-#ARG K8S_VERSION=v1.14.3
-ARG K8S_VERSION=v1.15.3
+ARG K8S_VERSION=v1.16.1
 ENV K8S_VERSION=$K8S_VERSION
 RUN mkdir -p /opt/bin \
 	&& cd /opt/bin \
