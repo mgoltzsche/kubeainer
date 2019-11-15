@@ -1,25 +1,39 @@
 #!/bin/sh
 
-set -ex
+set -e
 
 # Expose current env for kubeadm.service
 env > /run/env
 
-CEPH_MAX_RBD_DEVICES=${CEPH_MAX_RBD_DEVICES:-50}
+
+# Workaround to see host's /dev/rbdX and /dev/nbdX devices.
+# Devices appear within the filesystem based on a system event
+# which is not propagated to the container by the Linux kernel.
+while true; do
+	# Add missing devices
+	FILTER='^(r|n)bd'
+	lsblk --raw -a --output "NAME,MAJ:MIN" --noheadings | grep -E "$FILTER" | while read LINE; do
+		DEV=/dev/$(echo $LINE | cut -d' ' -f1)
+		MAJMIN=$(echo $LINE | cut -d' ' -f2)
+		MAJ=$(echo $MAJMIN | cut -d: -f1)
+		MIN=$(echo $MAJMIN | cut -d: -f2)
+		[ -b "$DEV" ] || (set -x; mknod "$DEV" b $MAJ $MIN)
+	done
+	# Unregister removed devices
+	find /dev -mindepth 1 -maxdepth 1 -type b | cut -d/ -f3 | grep -E "$FILTER" | sort > /dev/devs-registered
+	lsblk --raw -a --output "NAME" --noheadings | grep -E "$FILTER" | sort > /dev/devs-available
+	for ORPHAN in $(comm -23 /dev/devs-registered /dev/devs-available); do
+		(set -x; rm /dev/$ORPHAN)
+	done
+	sleep 7
+done &
+
+set -ex
 
 # Fix mounts
 mount --make-shared /
 #mount --make-shared /run
 #mount --make-shared /lib/modules
-
-# Provides $CEPH_MAX_RBD_DEVICES rbd device slots as symlinks to host's /dev.
-# Host's /dev cannot be mounted into container's /dev directly since it
-# causes conflicts/weird behaviour.
-i=0
-while [ $i -lt "$CEPH_MAX_RBD_DEVICES" ]; do
-	ln -s /host/dev/rbd$i /dev/rbd$i
-	i=$(expr $i + 1) || exit 1
-done
 
 # Use CRI-O version from volume dir to compare with current
 # to detect if storage needs to be wiped
