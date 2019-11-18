@@ -20,9 +20,9 @@ while true; do
 		[ -b "$DEV" ] || (set -x; mknod "$DEV" b $MAJ $MIN)
 	done
 	# Unregister removed devices
-	find /dev -mindepth 1 -maxdepth 1 -type b | cut -d/ -f3 | grep -E "$FILTER" | sort > /dev/devs-registered
-	lsblk --raw -a --output "NAME" --noheadings | grep -E "$FILTER" | sort > /dev/devs-available
-	for ORPHAN in $(comm -23 /dev/devs-registered /dev/devs-available); do
+	find /dev -mindepth 1 -maxdepth 1 -type b | cut -d/ -f3 | grep -E "$FILTER" | sort > /tmp/devs-created
+	lsblk --raw -a --output "NAME" --noheadings | grep -E "$FILTER" | sort > /tmp/devs-available
+	for ORPHAN in $(comm -23 /tmp/devs-created /tmp/devs-available); do
 		(set -x; rm /dev/$ORPHAN)
 	done
 	sleep 7

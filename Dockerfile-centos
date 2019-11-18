@@ -15,7 +15,7 @@ RUN apk add --update --no-cache git make gcc pkgconf musl-dev \
 	glib-static libc-dev gpgme-dev protobuf-dev protobuf-c-dev \
 	libseccomp-dev libselinux-dev ostree-dev openssl iptables bash \
 	go-md2man
-ARG CRIO_VERSION=v1.15.2
+ARG CRIO_VERSION=v1.16.0
 RUN git clone --branch=$CRIO_VERSION https://github.com/cri-o/cri-o /go/src/github.com/cri-o/cri-o
 WORKDIR /go/src/github.com/cri-o/cri-o
 #RUN nix-build cri-o/nix --argstr revision ${CRIO_VERSION}
@@ -25,7 +25,7 @@ RUN set -ex; \
 	[ "$(ldd bin/crio | wc -l)" -eq 0 ] || (ldd bin/crio; false)
 
 
-FROM mgoltzsche/podman:1.5 AS podman
+FROM mgoltzsche/podman:1.6.2 AS podman
 
 
 FROM centos:7
@@ -58,7 +58,7 @@ RUN mkdir -p /opt/bin \
 
 # Install kubeadm, kubelet, kubectl
 # (for latest stable version see https://storage.googleapis.com/kubernetes-release/release/stable.txt)
-ARG K8S_VERSION=v1.16.1
+ARG K8S_VERSION=v1.16.3
 ENV K8S_VERSION=$K8S_VERSION
 RUN mkdir -p /opt/bin \
 	&& cd /opt/bin \
@@ -68,7 +68,6 @@ RUN mkdir -p /opt/bin \
 
 # Install CRI-O & podman
 COPY --from=crio /go/src/github.com/cri-o/cri-o/bin/crio /usr/local/bin/crio
-COPY --from=crio /go/src/github.com/cri-o/cri-o/contrib/crio-wipe /usr/local/libexec/crio/crio-wipe
 COPY --from=crio /go/src/github.com/cri-o/cri-o/contrib/sysconfig/crio /etc/sysconfig/crio
 COPY --from=podman /usr/local/bin/runc /usr/local/bin/podman /usr/local/bin/
 COPY --from=podman /usr/libexec/podman/conmon /usr/libexec/podman/conmon
@@ -77,7 +76,7 @@ COPY --from=podman /etc/containers /etc/containers
 RUN set -ex; \
 	mkdir /etc/crio /var/lib/crio; \
 	crio --config="" config > /etc/crio/crio.conf; \
-	ln -s /usr/libexec/podman/conmon /usr/local/libexec/crio/conmon
+	ln -s /usr/libexec/podman/conmon /usr/local/bin/conmon
 RUN set -ex; crio --help >/dev/null; runc --help >/dev/null; podman --help >/dev/null
 COPY conf/sysctl.d /etc/sysctl.d
 VOLUME ["/var/lib/containers"]

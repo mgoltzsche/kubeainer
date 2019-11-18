@@ -9,7 +9,7 @@ set -e
 	: ${RESOLV_CONF:=$(find /etc/resolvconf/resolv.conf.d/original /run/systemd/resolve/resolv.conf /etc/resolv.conf 2>/dev/null | head -1)}
 	: ${CA_CN:=example.org}
 
-K8S_VERSION=v1.14.1
+K8S_VERSION=v1.16.3
 HELM_VERSION=v2.13.1
 IMAGES='k8s.gcr.io/kube-apiserver:v1.13.2
 		k8s.gcr.io/kube-proxy:v1.13.2
@@ -74,7 +74,7 @@ startMaster() {
 	# -v /etc/machine-id:/etc/machine-id:ro --net=host
 	# TODO: use fix IP, see below
 	# -v /sys/bus:/sys/bus
-	docker run -it --name kube-master --rm --privileged \
+	docker run -d --name kube-master --rm --privileged \
 		--net=kubeclusternet --ip ${KUBE_MASTER_IP} --hostname kube-master \
 		-v /etc/machine-id:/etc/machine-id:ro \
 		-v /lib/modules:/lib/modules:ro \

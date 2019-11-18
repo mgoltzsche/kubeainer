@@ -7,7 +7,14 @@ RequiresMountsFor=/var/lib/containers
 # On a real node the storage dir should be wiped when a new crio version
 # is started. However in this containerized setup /var/lib/containers
 # cannot be removed since it is mounted
-#ExecStart=/bin/bash /usr/local/libexec/crio/crio-wipe/crio-wipe.bash
+EnvironmentFile=-/etc/sysconfig/crio
+#ExecStart=/usr/local/bin/crio \
+#          $CRIO_CONFIG_OPTIONS \
+#          $CRIO_RUNTIME_OPTIONS \
+#          $CRIO_STORAGE_OPTIONS \
+#          $CRIO_NETWORK_OPTIONS \
+#          $CRIO_METRICS_OPTIONS \
+#		  wipe
 ExecStart=/bin/true
 Type=oneshot
 
