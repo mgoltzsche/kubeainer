@@ -8,7 +8,6 @@
 
 
 # Build CRI-O
-#FROM saschagrunert/crionix:1.0.0 AS crio
 FROM golang:1.12-alpine3.10 AS crio
 RUN apk add --update --no-cache git make gcc pkgconf musl-dev \
 	btrfs-progs btrfs-progs-dev libassuan-dev lvm2-dev device-mapper \
@@ -25,7 +24,7 @@ RUN set -ex; \
 	[ "$(ldd bin/crio | wc -l)" -eq 0 ] || (ldd bin/crio; false)
 
 
-FROM mgoltzsche/podman:1.6.2 AS podman
+FROM mgoltzsche/podman:1.6.3 AS podman
 
 
 FROM centos:7
@@ -47,7 +46,7 @@ VOLUME [ "/sys/fs/cgroup" ]
 RUN yum -y install iproute ebtables ethtool socat openssl xfsprogs e4fsprogs && yum clean all
 
 # Install CNI plugins
-ARG CNI_PLUGIN_VERSION=v0.8.2
+ARG CNI_PLUGIN_VERSION=v0.8.3
 RUN mkdir -p /opt/cni/bin \
 	&& curl -L "https://github.com/containernetworking/plugins/releases/download/${CNI_PLUGIN_VERSION}/cni-plugins-linux-amd64-${CNI_PLUGIN_VERSION}.tgz" | tar -C /opt/cni/bin -xz
 
