@@ -14,7 +14,7 @@ RUN apk add --update --no-cache git make gcc pkgconf musl-dev \
 	glib-static libc-dev gpgme-dev protobuf-dev protobuf-c-dev \
 	libseccomp-dev libselinux-dev ostree-dev openssl iptables bash \
 	go-md2man
-ARG CRIO_VERSION=v1.16.0
+ARG CRIO_VERSION=v1.16.1
 RUN git clone --branch=$CRIO_VERSION https://github.com/cri-o/cri-o /go/src/github.com/cri-o/cri-o
 WORKDIR /go/src/github.com/cri-o/cri-o
 #RUN nix-build cri-o/nix --argstr revision ${CRIO_VERSION}
@@ -24,7 +24,7 @@ RUN set -ex; \
 	[ "$(ldd bin/crio | wc -l)" -eq 0 ] || (ldd bin/crio; false)
 
 
-FROM mgoltzsche/podman:1.6.3 AS podman
+FROM mgoltzsche/podman:1.6.4 AS podman
 
 
 FROM centos:7
@@ -57,7 +57,7 @@ RUN mkdir -p /opt/bin \
 
 # Install kubeadm, kubelet, kubectl
 # (for latest stable version see https://storage.googleapis.com/kubernetes-release/release/stable.txt)
-ARG K8S_VERSION=v1.16.3
+ARG K8S_VERSION=v1.16.4
 ENV K8S_VERSION=$K8S_VERSION
 RUN mkdir -p /opt/bin \
 	&& cd /opt/bin \

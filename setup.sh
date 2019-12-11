@@ -19,7 +19,7 @@ initMaster() {
 	# ignoring missing bridge feature since it just doesn't show up within a network namespace due to a kernel bug but is functional
 	set -x
 	loadImages
-	K8S_VERSION=
+	[ "$K8S_VERSION" ] || (echo 'K8S_VERSION not set' >&2; false) || exit 1
 	# see https://github.com/cri-o/cri-o/blob/master/tutorials/kubeadm.md
 	# TODO: move apiserver cgroup below container's cgroup as well:
 	# --resource-container option, e.g. as in https://github.com/kubernetes-retired/kubeadm-dind-cluster/blob/master/image/kubeadm.conf.1.13.tmpl
