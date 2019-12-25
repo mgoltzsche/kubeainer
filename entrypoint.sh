@@ -5,7 +5,6 @@ set -e
 # Expose current env for kubeadm.service
 env > /run/env
 
-
 # Workaround to see host's /dev/rbdX and /dev/nbdX devices.
 # Devices appear within the filesystem based on a system event
 # which is not propagated to the container by the Linux kernel.

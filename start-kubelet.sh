@@ -17,7 +17,7 @@ exec /opt/bin/kubelet \
 	--feature-gates=AllAlpha=false,RunAsGroup=true \
 	--container-runtime=remote \
 	--cgroup-driver=cgroupfs \
-	--cgroup-root=$CGROUP_ROOT \
+	--cgroup-root=/ \
 	--kube-reserved-cgroup=$CGROUP_ROOT/kube-reserved \
 	--kubelet-cgroups=$CGROUP_ROOT/kubelet \
 	--container-runtime-endpoint=unix:///var/run/crio/crio.sock \

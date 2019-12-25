@@ -33,7 +33,7 @@ initMaster() {
 	chown $(stat -c '%u' /output) /output/kubeconfig.yaml
 
 	# Untaint master node to schedule pods
-	kubectl taint node $(hostname) node-role.kubernetes.io/master-
+	kubectl taint node "$(cat /etc/hostname)" node-role.kubernetes.io/master-
 
 	#installWeaveNetworking
 	#installCertManager &&

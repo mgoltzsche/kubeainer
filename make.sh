@@ -31,7 +31,7 @@ IMAGES='k8s.gcr.io/kube-apiserver:v1.13.2
 
 build() {
 	loadImages &&
-	docker build --force-rm -f Dockerfile-centos -t ${KUBE_IMAGE} .
+	docker build --force-rm -t ${KUBE_IMAGE} .
 }
 
 loadImages() {
@@ -71,21 +71,13 @@ startMaster() {
 	[ "${KUBE_TOKEN}" ] || { echo KUBE_TOKEN not set and cannot not be derived >&2; exit 1; }
 	initCA &&
 	mkdir -p -m 0755 crio-data1 crio-data2 &&
-	# -v /etc/machine-id:/etc/machine-id:ro --net=host
-	# TODO: use fix IP, see below
-	# -v /sys/bus:/sys/bus
 	docker run -d --name kube-master --rm --privileged \
 		--net=kubeclusternet --ip ${KUBE_MASTER_IP} --hostname kube-master \
-		-v /etc/machine-id:/etc/machine-id:ro \
 		-v /lib/modules:/lib/modules:ro \
 		-v /boot:/boot:ro \
-		-v /dev:/host/dev \
 		-v ${RESOLV_CONF}:/etc/resolv.conf:ro \
 		-v `pwd`/ca-cert/ca.key:/etc/kubernetes/pki/ca.key:ro \
 		-v `pwd`/ca-cert/ca.crt:/etc/kubernetes/pki/ca.crt:ro \
-		-v `pwd`/conf/manifests:/etc/kubernetes/custom:ro \
-		-v `pwd`/conf/helm:/etc/kubernetes/helm:rw \
-		-v `pwd`/conf/kustomize:/etc/kubernetes/kustomize:rw \
 		-v `pwd`/crio-data1:/var/lib/containers:rw \
 		-v `pwd`:/output:rw \
 		--tmpfs /run \
@@ -93,7 +85,6 @@ startMaster() {
 		-e KUBE_TYPE=master \
 		-e KUBE_TOKEN="${KUBE_TOKEN}" \
 		${KUBE_IMAGE}
-	#--net=kubeclusternet --ip ${KUBE_MASTER_IP} --hostname kube-master
 }
 
 startNode() {
@@ -104,10 +95,7 @@ startNode() {
 		--net=kubeclusternet --link kube-master \
 		-v /lib/modules:/lib/modules:ro \
 		-v /boot:/boot:ro \
-		-v /dev:/host/dev \
 		-v ${RESOLV_CONF}:/etc/resolv.conf:ro \
-		-v $HOME/.kube:/root/.kube \
-		-v `pwd`/docker-data2:/var/lib/docker:rw \
 		-v `pwd`/crio-data2:/var/lib/containers:rw \
 		--tmpfs /run \
 		--tmpfs /tmp \
