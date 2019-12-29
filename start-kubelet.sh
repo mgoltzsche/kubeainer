@@ -18,8 +18,8 @@ exec /opt/bin/kubelet \
 	--container-runtime=remote \
 	--cgroup-driver=cgroupfs \
 	--cgroup-root=/ \
-	--kube-reserved-cgroup=$CGROUP_ROOT/kube-reserved \
-	--kubelet-cgroups=$CGROUP_ROOT/kubelet \
+	--kube-reserved-cgroup=/kube-reserved \
+	--kubelet-cgroups=/kubelet \
 	--container-runtime-endpoint=unix:///var/run/crio/crio.sock \
 	--runtime-request-timeout=5m
 # --cgroups-per-qos=false --enforce-node-allocatable=

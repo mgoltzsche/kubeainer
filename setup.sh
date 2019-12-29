@@ -24,9 +24,10 @@ initMaster() {
 	# TODO: move apiserver cgroup below container's cgroup as well:
 	# --resource-container option, e.g. as in https://github.com/kubernetes-retired/kubeadm-dind-cluster/blob/master/image/kubeadm.conf.1.13.tmpl
 	kubeadm init --token="$KUBE_TOKEN" \
+		--cri-socket "/var/run/crio/crio.sock" \
 		--pod-network-cidr=10.244.0.0/16 \
-		--ignore-preflight-errors=FileContent--proc-sys-net-bridge-bridge-nf-call-iptables \
-		--kubernetes-version=$K8S_VERSION
+		--kubernetes-version=$K8S_VERSION \
+		--ignore-preflight-errors=FileContent--proc-sys-net-bridge-bridge-nf-call-iptables
 	mkdir -p /root/.kube /output
 	cp -f /etc/kubernetes/admin.conf /root/.kube/config
 	cp -f /etc/kubernetes/admin.conf /output/kubeconfig.yaml
@@ -51,7 +52,9 @@ initNode() {
 	set -x
 	loadImages
 	#mkdir -p /persistent-volumes/jenkins
-	kubeadm join "$KUBE_MASTER" --token="$KUBE_TOKEN" --discovery-token-ca-cert-hash="$KUBE_CA_CERT_HASH" --ignore-preflight-errors=FileContent--proc-sys-net-bridge-bridge-nf-call-iptables
+	kubeadm join "$KUBE_MASTER" --token="$KUBE_TOKEN" --discovery-token-ca-cert-hash="$KUBE_CA_CERT_HASH" \
+		--cri-socket "/var/run/crio/crio.sock" \
+		--ignore-preflight-errors=FileContent--proc-sys-net-bridge-bridge-nf-call-iptables
 }
 
 installWeaveNetworking() {

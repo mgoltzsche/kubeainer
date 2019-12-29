@@ -16,14 +16,16 @@ RUN apk add --update --no-cache git make gcc pkgconf musl-dev \
 	glib-static libc-dev gpgme-dev protobuf-dev protobuf-c-dev \
 	libseccomp-dev libselinux-dev ostree-dev openssl iptables bash \
 	go-md2man
-ARG CRIO_VERSION=v1.16.1
-RUN git clone --branch=$CRIO_VERSION https://github.com/cri-o/cri-o /go/src/github.com/cri-o/cri-o
+#ARG CRIO_VERSION=v1.16.1
+#RUN git clone --branch=$CRIO_VERSION https://github.com/cri-o/cri-o /go/src/github.com/cri-o/cri-o
+ARG CRIO_VERSION=master
+RUN git clone --branch=$CRIO_VERSION https://github.com/mgoltzsche/cri-o /go/src/github.com/cri-o/cri-o
 WORKDIR /go/src/github.com/cri-o/cri-o
-#RUN nix-build cri-o/nix --argstr revision ${CRIO_VERSION}
 RUN set -ex; \
-    make bin/crio SHRINKFLAGS='-s -w -extldflags "-static"' BUILDTAGS='seccomp selinux varlink exclude_graphdriver_devicemapper containers_image_ostree_stub containers_image_openpgp'; \
-	bin/crio --help >/dev/null; \
-	[ "$(ldd bin/crio | wc -l)" -eq 0 ] || (ldd bin/crio; false)
+	make bin/crio bin/pinns bin/crio-status SHRINKFLAGS='-s -w -extldflags "-static"' BUILDTAGS='seccomp selinux varlink exclude_graphdriver_devicemapper containers_image_ostree_stub containers_image_openpgp'; \
+	mv bin/* /usr/local/bin/; \
+	mkdir -p /etc/sysconfig; \
+	mv contrib/sysconfig/crio /etc/sysconfig/crio
 
 
 FROM alpine:3.10 AS downloads
@@ -55,9 +57,12 @@ FROM mgoltzsche/podman:1.6.4 AS podman
 FROM registry.fedoraproject.org/fedora-minimal:30
 
 # Install systemd and tools
+# - conntrack required by CRI-O
+# - network binaries required by CNI plugins
+# - (file system utilities for playing around with ceph)
 ENV container docker
 RUN set -ex; \
-	microdnf -y install systemd iptables iproute ebtables ethtool socat openssl xfsprogs e2fsprogs; \
+	microdnf -y install systemd conntrack iptables iproute ebtables ethtool socat openssl xfsprogs e2fsprogs; \
 	microdnf clean all; \
 	systemctl --help >/dev/null
 
@@ -66,14 +71,14 @@ COPY --from=downloads /opt/bin /opt/bin
 COPY --from=downloads /opt/cni/bin /opt/cni/bin
 
 # Copy crio & podman
-COPY --from=crio /go/src/github.com/cri-o/cri-o/bin/crio /usr/local/bin/crio
-COPY --from=crio /go/src/github.com/cri-o/cri-o/contrib/sysconfig/crio /etc/sysconfig/crio
+COPY --from=crio /usr/local/bin/ /usr/local/bin/
+COPY --from=crio /etc/sysconfig/crio /etc/sysconfig/crio
 COPY --from=podman /usr/local/bin/runc /usr/local/bin/podman /usr/local/bin/
 COPY --from=podman /usr/libexec/podman/conmon /usr/libexec/podman/conmon
 #COPY --from=podman /usr/libexec/cni/loopback /usr/libexec/cni/flannel /usr/libexec/cni/bridge /usr/libexec/cni/portmap /opt/cni/bin/
 COPY --from=podman /etc/containers /etc/containers
 RUN set -ex; \
-	mkdir -p /etc/crio /var/lib/crio /etc/kubernetes/manifests; \
+	mkdir -p /etc/crio /var/lib/crio /etc/kubernetes/manifests /usr/share/containers/oci/hooks.d; \
 	crio --config="" config > /etc/crio/crio.conf; \
 	ln -s /usr/libexec/podman/conmon /usr/local/bin/conmon
 RUN set -ex; crio --help >/dev/null; runc --help >/dev/null; podman --help >/dev/null
