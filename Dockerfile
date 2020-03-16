@@ -16,13 +16,10 @@ RUN apk add --update --no-cache git make gcc pkgconf musl-dev \
 	glib-static libc-dev gpgme-dev protobuf-dev protobuf-c-dev \
 	libseccomp-dev libselinux-dev ostree-dev openssl iptables bash \
 	go-md2man
-ARG CRIO_VERSION=v1.17.0
-# v1.17.0 with canonical docker image reference support (doesn't work with kubelet 1.17.4):
-#ARG CRIO_VERSION=7e66be6f3c20a3a3c512e878d3b7532f378beef3
-RUN git clone https://github.com/cri-o/cri-o /go/src/github.com/cri-o/cri-o
+ARG CRIO_VERSION=v1.17.1
+RUN git clone --branch=${CRIO_VERSION} https://github.com/cri-o/cri-o /go/src/github.com/cri-o/cri-o
 WORKDIR /go/src/github.com/cri-o/cri-o
 RUN set -ex; \
-	git checkout $CRIO_VERSION; \
 	make bin/crio bin/pinns bin/crio-status SHRINKFLAGS='-s -w -extldflags "-static"' BUILDTAGS='seccomp selinux varlink exclude_graphdriver_devicemapper containers_image_ostree_stub containers_image_openpgp'; \
 	mv bin/* /usr/local/bin/; \
 	mkdir -p /etc/sysconfig; \
