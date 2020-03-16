@@ -5,11 +5,25 @@ After=crio.service
 Wants=crio.service
 
 [Service]
-#ExecStart=/opt/bin/kubelet --bootstrap-kubeconfig=/etc/kubernetes/bootstrap-kubelet.conf --kubeconfig=/etc/kubernetes/kubelet.conf --config=/var/lib/kubelet/config.yaml --network-plugin=cni
-# TODO: use systemd cgroup driver: --cgroup-driver=systemd --cgroup-root=/systemd
+# See https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/kubelet-integration/#the-kubelet-drop-in-file-for-systemd
 # For CRI-O see: https://github.com/cri-o/cri-o/blob/master/tutorials/kubeadm.md
-#--network-plugin=cni
-ExecStart=/opt/bin/start-kubelet
+# TODO: use systemd cgroup driver: --cgroup-driver=systemd --cgroup-root=/systemd
+
+Environment="KUBELET_KUBECONFIG_ARGS=--bootstrap-kubeconfig=/etc/kubernetes/bootstrap-kubelet.conf --kubeconfig=/etc/kubernetes/kubelet.conf"
+Environment="KUBELET_CONFIG_ARGS=--config=/var/lib/kubelet/config.yaml"
+# This is a file that "kubeadm init" and "kubeadm join" generate at runtime, populating the KUBELET_KUBEADM_ARGS variable dynamically
+EnvironmentFile=-/var/lib/kubelet/kubeadm-flags.env
+Environment="KUBELET_EXTRA_ARGS=--feature-gates=AllAlpha=false,RunAsGroup=true \
+	--container-runtime=remote \
+	--container-runtime-endpoint=unix:///var/run/crio/crio.sock \
+	--runtime-request-timeout=5m \
+	--cgroup-driver=cgroupfs \
+	--cgroup-root=/ \
+	--kube-reserved-cgroup=/kube-reserved \
+	--kubelet-cgroups=/kubelet"
+ExecStart=/opt/bin/kubelet $KUBELET_KUBECONFIG_ARGS $KUBELET_CONFIG_ARGS $KUBELET_KUBEADM_ARGS $KUBELET_EXTRA_ARGS
+
+#ExecStart=/opt/bin/start-kubelet
 Restart=always
 StartLimitInterval=0
 RestartSec=10

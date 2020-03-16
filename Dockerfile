@@ -1,4 +1,4 @@
-ARG K8S_VERSION=v1.16.4
+ARG K8S_VERSION=v1.17.4
 
 #FROM golang:1.10-alpine AS cfssl
 #RUN apk add --update --no-cache git build-base
@@ -10,34 +10,35 @@ ARG K8S_VERSION=v1.16.4
 
 
 # Build CRI-O
-FROM golang:1.13-alpine3.10 AS crio
+FROM golang:1.14-alpine3.11 AS crio
 RUN apk add --update --no-cache git make gcc pkgconf musl-dev \
 	btrfs-progs btrfs-progs-dev libassuan-dev lvm2-dev device-mapper \
 	glib-static libc-dev gpgme-dev protobuf-dev protobuf-c-dev \
 	libseccomp-dev libselinux-dev ostree-dev openssl iptables bash \
 	go-md2man
-#ARG CRIO_VERSION=v1.16.1
-#RUN git clone --branch=$CRIO_VERSION https://github.com/cri-o/cri-o /go/src/github.com/cri-o/cri-o
-ARG CRIO_VERSION=master
-RUN git clone --branch=$CRIO_VERSION https://github.com/mgoltzsche/cri-o /go/src/github.com/cri-o/cri-o
+ARG CRIO_VERSION=v1.17.0
+# v1.17.0 with canonical docker image reference support (doesn't work with kubelet 1.17.4):
+#ARG CRIO_VERSION=7e66be6f3c20a3a3c512e878d3b7532f378beef3
+RUN git clone https://github.com/cri-o/cri-o /go/src/github.com/cri-o/cri-o
 WORKDIR /go/src/github.com/cri-o/cri-o
 RUN set -ex; \
+	git checkout $CRIO_VERSION; \
 	make bin/crio bin/pinns bin/crio-status SHRINKFLAGS='-s -w -extldflags "-static"' BUILDTAGS='seccomp selinux varlink exclude_graphdriver_devicemapper containers_image_ostree_stub containers_image_openpgp'; \
 	mv bin/* /usr/local/bin/; \
 	mkdir -p /etc/sysconfig; \
 	mv contrib/sysconfig/crio /etc/sysconfig/crio
 
 
-FROM alpine:3.10 AS downloads
+FROM alpine:3.11 AS downloads
 RUN apk add --update --no-cache curl tar
 
 # Download CNI plugins
-ARG CNI_PLUGIN_VERSION=v0.8.3
+ARG CNI_PLUGIN_VERSION=v0.8.5
 RUN mkdir -p /opt/cni/bin \
 	&& curl -L "https://github.com/containernetworking/plugins/releases/download/${CNI_PLUGIN_VERSION}/cni-plugins-linux-amd64-${CNI_PLUGIN_VERSION}.tgz" | tar -C /opt/cni/bin -xz
 
 # Download crictl (required for kubeadm / Kubelet Container Runtime Interface (CRI))
-ARG CRICTL_VERSION=v1.16.1
+ARG CRICTL_VERSION=v1.17.0
 RUN mkdir -p /opt/bin \
 	&& curl -L "https://github.com/kubernetes-sigs/cri-tools/releases/download/${CRICTL_VERSION}/crictl-${CRICTL_VERSION}-linux-amd64.tar.gz" | tar -C /opt/bin -xz
 
@@ -50,7 +51,7 @@ RUN mkdir -p /opt/bin \
 	&& chmod +x kubeadm kubelet kubectl
 
 
-FROM mgoltzsche/podman:1.6.4 AS podman
+FROM mgoltzsche/podman:1.8.1 AS podman
 
 
 # Build final image
@@ -62,7 +63,7 @@ FROM registry.fedoraproject.org/fedora-minimal:30
 # - (file system utilities for playing around with ceph)
 ENV container docker
 RUN set -ex; \
-	microdnf -y install systemd conntrack iptables iproute ebtables ethtool socat openssl xfsprogs e2fsprogs; \
+	microdnf -y install systemd conntrack iptables iproute ebtables ethtool socat openssl xfsprogs e2fsprogs findutils; \
 	microdnf clean all; \
 	systemctl --help >/dev/null
 
@@ -91,7 +92,6 @@ ARG K8S_VERSION
 ENV K8S_VERSION=$K8S_VERSION
 
 # Enable systemd services
-COPY start-kubelet.sh /opt/bin/start-kubelet
 COPY conf/systemd/* /etc/systemd/system/
 RUN systemctl enable kubelet kubeadm crio crio-wipe crio-shutdown
 

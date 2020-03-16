@@ -9,7 +9,7 @@ set -e
 	: ${RESOLV_CONF:=$(find /etc/resolvconf/resolv.conf.d/original /run/systemd/resolve/resolv.conf /etc/resolv.conf 2>/dev/null | head -1)}
 	: ${CA_CN:=example.org}
 
-K8S_VERSION=v1.16.3
+K8S_VERSION=v1.17.4
 HELM_VERSION=v2.13.1
 IMAGES='k8s.gcr.io/kube-apiserver:v1.13.2
 		k8s.gcr.io/kube-proxy:v1.13.2
