@@ -1,0 +1,12 @@
+namespace: metallb-system
+
+bases:
+- base
+
+secretGenerator:
+- name: memberlist
+  files:
+  - secretkey
+
+resources:
+- configmap-layer2.yaml

@@ -32,6 +32,12 @@ initMaster() {
 	cp -f /etc/kubernetes/admin.conf /root/.kube/config
 	cp -f /etc/kubernetes/admin.conf /output/kubeconfig.yaml
 	chown $(stat -c '%u' /output) /output/kubeconfig.yaml
+	enableCoreDNSPluginK8sExternal
+	installAddon flannel
+	openssl rand -base64 128 > /etc/kubernetes/addons/metallb/secretkey
+	installAddon metallb
+	installAddon ingress-nginx
+	installAddon local-path-provisioner
 
 	# Untaint master node to schedule pods
 	kubectl taint node "$(cat /etc/hostname)" node-role.kubernetes.io/master-
@@ -47,6 +53,47 @@ initNode() {
 		--cri-socket "/var/run/crio/crio.sock" \
 		--ignore-preflight-errors=FileContent--proc-sys-net-bridge-bridge-nf-call-iptables
 }
+
+# Args: ADDON_NAME
+installAddon() {
+	kubectl apply -k "/etc/kubernetes/addons/$1"
+}
+
+# Enables k8s_external coredns plugin to provide access to Services of type LoadBalancer under an external zone within the cluster and on nodes (required for e.g. registry)
+enableCoreDNSPluginK8sExternal() {
+	# original Corefile with k8s_external plugin enabled.
+	# see https://github.com/coredns/coredns/tree/master/plugin/k8s_external
+	kubectl apply -f - <<-EOF
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: coredns
+  namespace: kube-system
+data:
+  Corefile: |
+    .:53 {
+        errors
+        health {
+           lameduck 5s
+        }
+        ready
+        kubernetes cluster.local in-addr.arpa ip6.arpa {
+           pods insecure
+           fallthrough in-addr.arpa ip6.arpa
+           ttl 30
+        }
+        k8s_external svc.example.org
+        prometheus :9153
+        forward . /etc/resolv.conf
+        cache 30
+        loop
+        reload
+        loadbalance
+    }
+	EOF
+}
+
+
 
 # Init node
 case "$KUBE_TYPE" in

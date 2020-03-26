@@ -5,8 +5,6 @@ set -e
 	: ${KUBE_NET:=10.23.0.0/16}
 	: ${KUBE_MASTER_IP:=10.23.0.2}
 	#: ${KUBE_MASTER_IP:=`ip -4 route get 8.8.8.8 | awk {'print $7'} | tr -d '\n'`}
-	# Use original resolv.conf (uncached)
-	: ${RESOLV_CONF:=$(find /etc/resolvconf/resolv.conf.d/original /run/systemd/resolve/resolv.conf /etc/resolv.conf 2>/dev/null | head -1)}
 	: ${CA_CN:=example.org}
 
 K8S_VERSION=v1.17.4
@@ -75,7 +73,6 @@ startMaster() {
 		--net=kubeclusternet --ip ${KUBE_MASTER_IP} --hostname kube-master \
 		-v /lib/modules:/lib/modules:ro \
 		-v /boot:/boot:ro \
-		-v ${RESOLV_CONF}:/etc/resolv.conf:ro \
 		-v `pwd`/ca-cert/ca.key:/etc/kubernetes/pki/ca.key:ro \
 		-v `pwd`/ca-cert/ca.crt:/etc/kubernetes/pki/ca.crt:ro \
 		-v `pwd`/crio-data1:/var/lib/containers:rw \
@@ -95,7 +92,6 @@ startNode() {
 		--net=kubeclusternet --link kube-master \
 		-v /lib/modules:/lib/modules:ro \
 		-v /boot:/boot:ro \
-		-v ${RESOLV_CONF}:/etc/resolv.conf:ro \
 		-v `pwd`/crio-data2:/var/lib/containers:rw \
 		--tmpfs /run \
 		--tmpfs /tmp \

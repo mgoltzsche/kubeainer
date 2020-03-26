@@ -8,15 +8,16 @@ ARG K8S_VERSION=v1.17.4
 #WORKDIR /go/src/github.com/cloudflare/cfssl
 #RUN CGO_ENABLED=0 GOOS=linux go install -a -ldflags '-extldflags "-static"' ./cmd/...
 
-
+##
 # Build CRI-O
+##
 FROM golang:1.14-alpine3.11 AS crio
 RUN apk add --update --no-cache git make gcc pkgconf musl-dev \
 	btrfs-progs btrfs-progs-dev libassuan-dev lvm2-dev device-mapper \
 	glib-static libc-dev gpgme-dev protobuf-dev protobuf-c-dev \
 	libseccomp-dev libselinux-dev ostree-dev openssl iptables bash \
 	go-md2man
-ARG CRIO_VERSION=v1.17.1
+ARG CRIO_VERSION=v1.17.2
 RUN git clone --branch=${CRIO_VERSION} https://github.com/cri-o/cri-o /go/src/github.com/cri-o/cri-o
 WORKDIR /go/src/github.com/cri-o/cri-o
 RUN set -ex; \
@@ -26,6 +27,9 @@ RUN set -ex; \
 	mv contrib/sysconfig/crio /etc/sysconfig/crio
 
 
+##
+# Download binaries
+##
 FROM alpine:3.11 AS downloads
 RUN apk add --update --no-cache curl tar
 
@@ -51,7 +55,9 @@ RUN mkdir -p /opt/bin \
 FROM mgoltzsche/podman:1.8.1 AS podman
 
 
+##
 # Build final image
+##
 FROM registry.fedoraproject.org/fedora-minimal:30
 
 # Install systemd and tools
@@ -60,7 +66,7 @@ FROM registry.fedoraproject.org/fedora-minimal:30
 # - (file system utilities for playing around with ceph)
 ENV container docker
 RUN set -ex; \
-	microdnf -y install systemd conntrack iptables iproute ebtables ethtool socat openssl xfsprogs e2fsprogs findutils; \
+	microdnf -y install systemd conntrack iptables iproute ebtables ethtool socat openssl xfsprogs e2fsprogs tar findutils; \
 	microdnf clean all; \
 	systemctl --help >/dev/null
 
@@ -88,9 +94,37 @@ ENV KUBE_TYPE=master
 ARG K8S_VERSION
 ENV K8S_VERSION=$K8S_VERSION
 
+# Configure DNS:
+# Write resolv.conf used by coredns (see kubelet args; must contain public IPs only to avoid coredns forwarding to itself)
+# (on a real host with systemd-resolve enabled /run/systemd/resolve/resolv.conf would be used as is instead)
+RUN printf 'nameserver 1.1.1.1\nnameserver 8.8.8.8\n' > /etc/resolv.conf.coredns
+
+
+# Add addons
+ARG FLANNEL_VERSION=v0.12.0
+ARG METALLB_VERSION=0.9.2
+ARG INGRESSNGINX_VERSION=nginx-0.25.1
+ARG LOCALPATHPROVISIONER_VERSION=0.0.12
+COPY addons /etc/kubernetes/addons
+ADD https://raw.githubusercontent.com/coreos/flannel/${FLANNEL_VERSION}/Documentation/kube-flannel.yml /etc/kubernetes/addons/flannel/flannel.yaml
+# Download metallb kustomization
+RUN curl -fsSL https://github.com/metallb/metallb/archive/v${METALLB_VERSION}.tar.gz | tar -xzf - -C /tmp \
+	&& mv /tmp/metallb-${METALLB_VERSION}/manifests /etc/kubernetes/addons/metallb/base \
+	&& rm -rf /tmp/metallb-${METALLB_VERSION}
+# Download ingress-nginx kustomization
+RUN curl -fsSL https://github.com/kubernetes/ingress-nginx/archive/${INGRESSNGINX_VERSION}.tar.gz | tar -xzf - -C /tmp \
+	&& mv /tmp/ingress-nginx-${INGRESSNGINX_VERSION}/deploy /etc/kubernetes/addons/ingress-nginx/deploy \
+	&& rm -rf /tmp/ingress-nginx-${INGRESSNGINX_VERSION}
+# Download local-path-provisioner kustomization
+RUN curl -fsSL https://github.com/rancher/local-path-provisioner/archive/v${LOCALPATHPROVISIONER_VERSION}.tar.gz | tar -xzf - -C /tmp \
+	&& mv /tmp/local-path-provisioner-${LOCALPATHPROVISIONER_VERSION}/deploy /etc/kubernetes/addons/local-path-provisioner/base \
+	&& rm -rf /tmp/local-path-provisioner-${LOCALPATHPROVISIONER_VERSION}
+
+##
 # Enable systemd services
+##
 COPY conf/systemd/* /etc/systemd/system/
-RUN systemctl enable kubelet kubeadm crio crio-wipe crio-shutdown
+RUN systemctl enable crio crio-wipe crio-shutdown kubelet kubeadm
 
 # Make init script appear as systemd init process to support OCI hooks oci-systemd-hook and oci-register-machine
 RUN mv /usr/sbin/init /usr/sbin/systemd

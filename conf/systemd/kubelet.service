@@ -13,6 +13,9 @@ Environment="KUBELET_KUBECONFIG_ARGS=--bootstrap-kubeconfig=/etc/kubernetes/boot
 Environment="KUBELET_CONFIG_ARGS=--config=/var/lib/kubelet/config.yaml"
 # This is a file that "kubeadm init" and "kubeadm join" generate at runtime, populating the KUBELET_KUBEADM_ARGS variable dynamically
 EnvironmentFile=-/var/lib/kubelet/kubeadm-flags.env
+# --resolve-conf (default /etc/resolv.conf) must point to "real" resolv.conf without loopback IPs (otherwise coredns forwards to itself)
+# see https://github.com/coredns/coredns/blob/master/plugin/loop/README.md#troubleshooting
+# typical original resolv.conf locations: /run/systemd/resolve/resolv.conf, /etc/resolvconf/resolv.conf.d/original
 Environment="KUBELET_EXTRA_ARGS=--feature-gates=AllAlpha=false,RunAsGroup=true \
 	--container-runtime=remote \
 	--container-runtime-endpoint=unix:///var/run/crio/crio.sock \
@@ -20,7 +23,8 @@ Environment="KUBELET_EXTRA_ARGS=--feature-gates=AllAlpha=false,RunAsGroup=true \
 	--cgroup-driver=cgroupfs \
 	--cgroup-root=/ \
 	--kube-reserved-cgroup=/kube-reserved \
-	--kubelet-cgroups=/kubelet"
+	--kubelet-cgroups=/kubelet \
+	--resolv-conf=/etc/resolv.conf.coredns"
 ExecStart=/opt/bin/kubelet $KUBELET_KUBECONFIG_ARGS $KUBELET_CONFIG_ARGS $KUBELET_KUBEADM_ARGS $KUBELET_EXTRA_ARGS
 
 #ExecStart=/opt/bin/start-kubelet

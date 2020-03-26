@@ -2,6 +2,11 @@
 
 set -e
 
+# Add coredns (static ClusterIP) as first nameserver
+# (on a real host with systemd-resolve enabled /etc/systemd/resolved.conf would be configured with '[Resolve]\nDNS=10.96.0.10')
+RESOLVCONF="$(echo 'nameserver 10.96.0.10' && cat /etc/resolv.conf)"
+echo "$RESOLVCONF" > /etc/resolv.conf
+
 # Expose current env for kubeadm.service
 env > /run/env
 
