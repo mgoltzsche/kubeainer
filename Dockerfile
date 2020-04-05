@@ -52,7 +52,7 @@ RUN mkdir -p /opt/bin \
 	&& chmod +x kubeadm kubelet kubectl
 
 
-FROM mgoltzsche/podman:1.8.1 AS podman
+FROM mgoltzsche/podman:1.8.2 AS podman
 
 
 ##

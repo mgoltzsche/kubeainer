@@ -1,0 +1,10 @@
+$TTL 60 ; 1 minute
+@             IN SOA  example.org. root.example.org. (
+                                16         ; serial
+                                60         ; refresh (1 minute)
+                                60         ; retry (1 minute)
+                                60         ; expire (1 minute)
+                                60         ; minimum (1 minute)
+                                )
+                        NS      ns.example.org.
+ns                      A       127.0.0.1

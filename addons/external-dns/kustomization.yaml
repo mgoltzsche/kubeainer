@@ -1,0 +1,12 @@
+# see https://github.com/kubernetes-sigs/external-dns/blob/master/docs/tutorials/rfc2136.md
+
+resources:
+- rbac.yaml
+- deployment.yaml
+
+configMapGenerator:
+- name: externaldns-bind-conf
+  namespace: kube-system
+  files:
+  - bind/named.conf
+  - bind/k8s.zone
