@@ -17,7 +17,7 @@ RUN apk add --update --no-cache git make gcc pkgconf musl-dev \
 	glib-static libc-dev gpgme-dev protobuf-dev protobuf-c-dev \
 	libseccomp-dev libselinux-dev ostree-dev openssl iptables bash \
 	go-md2man
-ARG CRIO_VERSION=v1.17.2
+ARG CRIO_VERSION=v1.17.4
 RUN git clone --branch=${CRIO_VERSION} https://github.com/cri-o/cri-o /go/src/github.com/cri-o/cri-o
 WORKDIR /go/src/github.com/cri-o/cri-o
 RUN set -ex; \
@@ -105,6 +105,7 @@ ARG FLANNEL_VERSION=v0.12.0
 ARG METALLB_VERSION=0.9.2
 ARG INGRESSNGINX_VERSION=nginx-0.25.1
 ARG LOCALPATHPROVISIONER_VERSION=0.0.12
+ARG CERTMANAGER_VERSION=v0.14.2
 COPY addons /etc/kubernetes/addons
 ADD https://raw.githubusercontent.com/coreos/flannel/${FLANNEL_VERSION}/Documentation/kube-flannel.yml /etc/kubernetes/addons/flannel/flannel.yaml
 # Download metallb kustomization
@@ -119,6 +120,7 @@ RUN curl -fsSL https://github.com/kubernetes/ingress-nginx/archive/${INGRESSNGIN
 RUN curl -fsSL https://github.com/rancher/local-path-provisioner/archive/v${LOCALPATHPROVISIONER_VERSION}.tar.gz | tar -xzf - -C /tmp \
 	&& mv /tmp/local-path-provisioner-${LOCALPATHPROVISIONER_VERSION}/deploy /etc/kubernetes/addons/local-path-provisioner/base \
 	&& rm -rf /tmp/local-path-provisioner-${LOCALPATHPROVISIONER_VERSION}
+RUN curl -fsSLo /etc/kubernetes/addons/cert-manager/cert-manager.yaml https://github.com/jetstack/cert-manager/releases/download/${CERTMANAGER_VERSION}/cert-manager.yaml
 
 ##
 # Enable systemd services

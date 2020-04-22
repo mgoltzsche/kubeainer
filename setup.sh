@@ -27,7 +27,8 @@ initMaster() {
 		--cri-socket "/var/run/crio/crio.sock" \
 		--pod-network-cidr=10.244.0.0/16 \
 		--kubernetes-version=$K8S_VERSION \
-		--ignore-preflight-errors=FileContent--proc-sys-net-bridge-bridge-nf-call-iptables
+		--ignore-preflight-errors=FileContent--proc-sys-net-bridge-bridge-nf-call-iptables \
+		--ignore-preflight-errors Swap
 	mkdir -p /root/.kube /output
 	cp -f /etc/kubernetes/admin.conf /root/.kube/config
 	cp -f /etc/kubernetes/admin.conf /output/kubeconfig.yaml
@@ -39,6 +40,7 @@ initMaster() {
 	installAddon ingress-nginx
 	installAddon local-path-provisioner
 	installAddon external-dns
+	installAddon cert-manager
 
 	# Untaint master node to schedule pods
 	kubectl taint node "$(cat /etc/hostname)" node-role.kubernetes.io/master-
