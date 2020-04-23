@@ -1,4 +1,4 @@
-ARG K8S_VERSION=v1.17.4
+ARG K8S_VERSION=v1.18.2
 
 #FROM golang:1.10-alpine AS cfssl
 #RUN apk add --update --no-cache git build-base
@@ -17,11 +17,11 @@ RUN apk add --update --no-cache git make gcc pkgconf musl-dev \
 	glib-static libc-dev gpgme-dev protobuf-dev protobuf-c-dev \
 	libseccomp-dev libselinux-dev ostree-dev openssl iptables bash \
 	go-md2man
-ARG CRIO_VERSION=v1.17.4
+ARG CRIO_VERSION=v1.18.0
 RUN git clone --branch=${CRIO_VERSION} https://github.com/cri-o/cri-o /go/src/github.com/cri-o/cri-o
 WORKDIR /go/src/github.com/cri-o/cri-o
 RUN set -ex; \
-	make bin/crio bin/pinns bin/crio-status SHRINKFLAGS='-s -w -extldflags "-static"' BUILDTAGS='seccomp selinux varlink exclude_graphdriver_devicemapper containers_image_ostree_stub containers_image_openpgp'; \
+	CGROUP_MANAGER=cgroupfs make bin/crio bin/pinns bin/crio-status SHRINKFLAGS='-s -w -extldflags "-static"' BUILDTAGS='seccomp selinux varlink exclude_graphdriver_devicemapper containers_image_ostree_stub containers_image_openpgp'; \
 	mv bin/* /usr/local/bin/; \
 	mkdir -p /etc/sysconfig; \
 	mv contrib/sysconfig/crio /etc/sysconfig/crio
@@ -39,7 +39,7 @@ RUN mkdir -p /opt/cni/bin \
 	&& curl -L "https://github.com/containernetworking/plugins/releases/download/${CNI_PLUGIN_VERSION}/cni-plugins-linux-amd64-${CNI_PLUGIN_VERSION}.tgz" | tar -C /opt/cni/bin -xz
 
 # Download crictl (required for kubeadm / Kubelet Container Runtime Interface (CRI))
-ARG CRICTL_VERSION=v1.17.0
+ARG CRICTL_VERSION=v1.18.0
 RUN mkdir -p /opt/bin \
 	&& curl -L "https://github.com/kubernetes-sigs/cri-tools/releases/download/${CRICTL_VERSION}/crictl-${CRICTL_VERSION}-linux-amd64.tar.gz" | tar -C /opt/bin -xz
 
@@ -52,7 +52,7 @@ RUN mkdir -p /opt/bin \
 	&& chmod +x kubeadm kubelet kubectl
 
 
-FROM mgoltzsche/podman:1.8.2 AS podman
+FROM mgoltzsche/podman:1.9.0 AS podman
 
 
 ##
@@ -83,7 +83,7 @@ COPY --from=podman /usr/libexec/podman/conmon /usr/libexec/podman/conmon
 COPY --from=podman /etc/containers /etc/containers
 RUN set -ex; \
 	mkdir -p /etc/crio /var/lib/crio /etc/kubernetes/manifests /usr/share/containers/oci/hooks.d; \
-	crio --config="" config > /etc/crio/crio.conf; \
+	crio --config="" --cgroup-manager=cgroupfs config > /etc/crio/crio.conf; \
 	ln -s /usr/libexec/podman/conmon /usr/local/bin/conmon
 RUN set -ex; crio --help >/dev/null; runc --help >/dev/null; podman --help >/dev/null
 COPY conf/sysctl.d /etc/sysctl.d

@@ -24,7 +24,8 @@ Environment="KUBELET_EXTRA_ARGS=--feature-gates=AllAlpha=false,RunAsGroup=true \
 	--cgroup-root=/ \
 	--kube-reserved-cgroup=/kube-reserved \
 	--kubelet-cgroups=/kubelet \
-	--resolv-conf=/etc/resolv.conf.coredns"
+	--resolv-conf=/etc/resolv.conf.coredns \
+	--fail-swap-on=false"
 ExecStart=/opt/bin/kubelet $KUBELET_KUBECONFIG_ARGS $KUBELET_CONFIG_ARGS $KUBELET_KUBEADM_ARGS $KUBELET_EXTRA_ARGS
 
 #ExecStart=/opt/bin/start-kubelet
