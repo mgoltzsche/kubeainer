@@ -1,4 +1,4 @@
-ARG K8S_VERSION=v1.18.2
+ARG K8S_VERSION=v1.18.3
 
 #FROM golang:1.10-alpine AS cfssl
 #RUN apk add --update --no-cache git build-base
@@ -11,13 +11,13 @@ ARG K8S_VERSION=v1.18.2
 ##
 # Build CRI-O
 ##
-FROM golang:1.14-alpine3.11 AS crio
+FROM golang:1.14-alpine3.12 AS crio
 RUN apk add --update --no-cache git make gcc pkgconf musl-dev \
 	btrfs-progs btrfs-progs-dev libassuan-dev lvm2-dev device-mapper \
 	glib-static libc-dev gpgme-dev protobuf-dev protobuf-c-dev \
 	libseccomp-dev libselinux-dev ostree-dev openssl iptables bash \
 	go-md2man
-ARG CRIO_VERSION=v1.18.0
+ARG CRIO_VERSION=v1.18.1
 RUN git clone --branch=${CRIO_VERSION} https://github.com/cri-o/cri-o /go/src/github.com/cri-o/cri-o
 WORKDIR /go/src/github.com/cri-o/cri-o
 RUN set -ex; \
@@ -30,11 +30,11 @@ RUN set -ex; \
 ##
 # Download binaries
 ##
-FROM alpine:3.11 AS downloads
+FROM alpine:3.12 AS downloads
 RUN apk add --update --no-cache curl tar
 
 # Download CNI plugins
-ARG CNI_PLUGIN_VERSION=v0.8.5
+ARG CNI_PLUGIN_VERSION=v0.8.6
 RUN mkdir -p /opt/cni/bin \
 	&& curl -L "https://github.com/containernetworking/plugins/releases/download/${CNI_PLUGIN_VERSION}/cni-plugins-linux-amd64-${CNI_PLUGIN_VERSION}.tgz" | tar -C /opt/cni/bin -xz
 
@@ -52,7 +52,7 @@ RUN mkdir -p /opt/bin \
 	&& chmod +x kubeadm kubelet kubectl
 
 
-FROM mgoltzsche/podman:1.9.0 AS podman
+FROM mgoltzsche/podman:1.9.3 AS podman
 
 
 ##
@@ -77,7 +77,7 @@ COPY --from=downloads /opt/cni/bin /opt/cni/bin
 # Copy crio & podman
 COPY --from=crio /usr/local/bin/ /usr/local/bin/
 COPY --from=crio /etc/sysconfig/crio /etc/sysconfig/crio
-COPY --from=podman /usr/local/bin/runc /usr/local/bin/podman /usr/local/bin/
+COPY --from=podman /usr/local/bin/runc /usr/local/bin/
 COPY --from=podman /usr/libexec/podman/conmon /usr/libexec/podman/conmon
 #COPY --from=podman /usr/libexec/cni/loopback /usr/libexec/cni/flannel /usr/libexec/cni/bridge /usr/libexec/cni/portmap /opt/cni/bin/
 COPY --from=podman /etc/containers /etc/containers
@@ -85,7 +85,7 @@ RUN set -ex; \
 	mkdir -p /etc/crio /var/lib/crio /etc/kubernetes/manifests /usr/share/containers/oci/hooks.d; \
 	crio --config="" --cgroup-manager=cgroupfs config > /etc/crio/crio.conf; \
 	ln -s /usr/libexec/podman/conmon /usr/local/bin/conmon
-RUN set -ex; crio --help >/dev/null; runc --help >/dev/null; podman --help >/dev/null
+RUN set -ex; crio --help >/dev/null; runc --help >/dev/null
 COPY conf/sysctl.d /etc/sysctl.d
 VOLUME ["/var/lib/containers"]
 
@@ -127,6 +127,8 @@ RUN curl -fsSLo /etc/kubernetes/addons/cert-manager/cert-manager.yaml https://gi
 ##
 COPY conf/systemd/* /etc/systemd/system/
 RUN systemctl enable crio crio-wipe crio-shutdown kubelet kubeadm
+
+RUN printf 'runtime-endpoint: unix:///var/run/crio/crio.sock' > /etc/crictl.yaml
 
 # Make init script appear as systemd init process to support OCI hooks oci-systemd-hook and oci-register-machine
 RUN mv /usr/sbin/init /usr/sbin/systemd
