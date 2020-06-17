@@ -1,2 +1,5 @@
 resources:
 - flannel.yaml
+
+patchesStrategicMerge:
+- flannel-patch.yaml

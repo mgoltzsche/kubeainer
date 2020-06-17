@@ -1,0 +1,14 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: kube-flannel-ds-amd64
+  namespace: kube-system
+spec:
+  template:
+    spec:
+      containers:
+      - name: kube-flannel
+        securityContext:
+          # CAP_NET_ADMIN doesn't seem to be enough since, when unprivileged, it logs:
+          #   can't initialize iptables table `filter': Permission denied
+          privileged: true
