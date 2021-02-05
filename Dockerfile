@@ -1,4 +1,4 @@
-ARG K8S_VERSION=v1.18.3
+ARG K8S_VERSION=v1.18.15
 
 #FROM golang:1.10-alpine AS cfssl
 #RUN apk add --update --no-cache git build-base
@@ -17,7 +17,7 @@ RUN apk add --update --no-cache git make gcc pkgconf musl-dev \
 	glib-static libc-dev gpgme-dev protobuf-dev protobuf-c-dev \
 	libseccomp-dev libselinux-dev ostree-dev openssl iptables bash \
 	go-md2man
-ARG CRIO_VERSION=v1.18.1
+ARG CRIO_VERSION=v1.18.4
 RUN git clone --branch=${CRIO_VERSION} https://github.com/cri-o/cri-o /go/src/github.com/cri-o/cri-o
 WORKDIR /go/src/github.com/cri-o/cri-o
 RUN set -ex; \
@@ -34,31 +34,29 @@ FROM alpine:3.12 AS downloads
 RUN apk add --update --no-cache curl tar
 
 # Download CNI plugins
-ARG CNI_PLUGIN_VERSION=v0.8.6
-RUN mkdir -p /opt/cni/bin \
-	&& curl -L "https://github.com/containernetworking/plugins/releases/download/${CNI_PLUGIN_VERSION}/cni-plugins-linux-amd64-${CNI_PLUGIN_VERSION}.tgz" | tar -C /opt/cni/bin -xz
+ARG CNI_PLUGIN_VERSION=v0.9.0
+RUN mkdir -p /usr/libexec/cni \
+	&& curl -L "https://github.com/containernetworking/plugins/releases/download/${CNI_PLUGIN_VERSION}/cni-plugins-linux-amd64-${CNI_PLUGIN_VERSION}.tgz" | tar -C /usr/libexec/cni -xz
 
 # Download crictl (required for kubeadm / Kubelet Container Runtime Interface (CRI))
 ARG CRICTL_VERSION=v1.18.0
-RUN mkdir -p /opt/bin \
-	&& curl -L "https://github.com/kubernetes-sigs/cri-tools/releases/download/${CRICTL_VERSION}/crictl-${CRICTL_VERSION}-linux-amd64.tar.gz" | tar -C /opt/bin -xz
+RUN curl -L "https://github.com/kubernetes-sigs/cri-tools/releases/download/${CRICTL_VERSION}/crictl-${CRICTL_VERSION}-linux-amd64.tar.gz" | tar -C /usr/local/bin -xz
 
 # Download kubeadm, kubelet, kubectl
 # (for latest stable version see https://storage.googleapis.com/kubernetes-release/release/stable.txt)
 ARG K8S_VERSION
-RUN mkdir -p /opt/bin \
-	&& cd /opt/bin \
+RUN cd /usr/local/bin \
 	&& curl -L --remote-name-all https://storage.googleapis.com/kubernetes-release/release/${K8S_VERSION}/bin/linux/amd64/{kubeadm,kubelet,kubectl} \
 	&& chmod +x kubeadm kubelet kubectl
 
 
-FROM mgoltzsche/podman:1.9.3 AS podman
+FROM mgoltzsche/podman:2.2.1-rc2-minimal AS podman
 
 
 ##
 # Build final image
 ##
-FROM registry.fedoraproject.org/fedora-minimal:30
+FROM registry.fedoraproject.org/fedora-minimal:33
 
 # Install systemd and tools
 # - conntrack required by CRI-O
@@ -71,25 +69,32 @@ RUN set -ex; \
 	systemctl --help >/dev/null
 
 # Copy kubeadm, kubelet, kubectl, crictl and CNI plugins
-COPY --from=downloads /opt/bin /opt/bin
-COPY --from=downloads /opt/cni/bin /opt/cni/bin
+COPY --from=downloads /usr/local/bin/ /usr/local/bin/
+COPY --from=downloads /usr/libexec/cni /usr/libexec/cni
 
 # Copy crio & podman
 COPY --from=crio /usr/local/bin/ /usr/local/bin/
 COPY --from=crio /etc/sysconfig/crio /etc/sysconfig/crio
-COPY --from=podman /usr/local/bin/runc /usr/local/bin/
+COPY --from=podman /usr/local/bin/crun /usr/local/bin/
+COPY --from=podman /usr/local/bin/fuse-overlayfs /usr/local/bin/fusermount3 /usr/local/bin/
 COPY --from=podman /usr/libexec/podman/conmon /usr/libexec/podman/conmon
-#COPY --from=podman /usr/libexec/cni/loopback /usr/libexec/cni/flannel /usr/libexec/cni/bridge /usr/libexec/cni/portmap /opt/cni/bin/
+#COPY --from=podman /usr/libexec/cni/loopback /usr/libexec/cni/flannel /usr/libexec/cni/bridge /usr/libexec/cni/portmap /usr/libexec/cni/
 COPY --from=podman /etc/containers /etc/containers
 RUN set -ex; \
-	mkdir -p /etc/crio /var/lib/crio /etc/kubernetes/manifests /usr/share/containers/oci/hooks.d; \
-	crio --config="" --cgroup-manager=cgroupfs config > /etc/crio/crio.conf; \
+	mkdir -p /etc/crio /var/lib/crio /etc/kubernetes/manifests /usr/share/containers/oci/hooks.d /opt/cni; \
+	ln -s /usr/libexec/cni /opt/cni/bin; \
+	crio --config="" \
+		--cgroup-manager=cgroupfs \
+		--default-runtime=crun \
+		--runtimes=crun:/usr/local/bin/crun:/run/crun config \
+			| sed '/\[crio.runtime.runtimes.runc\]/,+4 d' > /etc/crio/crio.conf; \
 	ln -s /usr/libexec/podman/conmon /usr/local/bin/conmon
-RUN set -ex; crio --help >/dev/null; runc --help >/dev/null
+RUN set -ex; crio --help >/dev/null; crun --help >/dev/null; \
+	mkdir /data
 COPY conf/sysctl.d /etc/sysctl.d
-VOLUME ["/var/lib/containers"]
+VOLUME ["/data"]
 
-ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/opt/bin
+ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/libexec/cni
 ENV KUBE_TYPE=master
 ARG K8S_VERSION
 ENV K8S_VERSION=$K8S_VERSION
@@ -125,6 +130,15 @@ RUN curl -fsSLo /etc/kubernetes/addons/cert-manager/cert-manager.yaml https://gi
 ##
 # Enable systemd services
 ##
+RUN set -e; \
+	(cd /lib/systemd/system/sysinit.target.wants/; for i in *; do [ $$i == systemd-tmpfiles-setup.service ] || rm -f $$i; done); \
+	rm -rf /lib/systemd/system/multi-user.target.wants/* \
+		/etc/systemd/system/*.wants/* \
+		/lib/systemd/system/local-fs.target.wants/* \
+		/lib/systemd/system/sockets.target.wants/*udev* \
+		/lib/systemd/system/sockets.target.wants/*initctl* \
+		/lib/systemd/system/basic.target.wants/* \
+		/lib/systemd/system/anaconda.target.wants/*
 COPY conf/systemd/* /etc/systemd/system/
 RUN systemctl enable crio crio-wipe crio-shutdown kubelet kubeadm
 

@@ -5,9 +5,9 @@ set -e
 	: ${KUBE_NET:=10.23.0.0/16}
 	: ${KUBE_MASTER_IP:=10.23.0.2}
 	#: ${KUBE_MASTER_IP:=`ip -4 route get 8.8.8.8 | awk {'print $7'} | tr -d '\n'`}
-	: ${CA_CN:=example.org}
 
-K8S_VERSION=v1.17.4
+DOCKER=${DOCKER:-docker}
+K8S_VERSION=v1.18.15
 HELM_VERSION=v2.13.1
 IMAGES='k8s.gcr.io/kube-apiserver:v1.13.2
 		k8s.gcr.io/kube-proxy:v1.13.2
@@ -28,15 +28,15 @@ IMAGES='k8s.gcr.io/kube-apiserver:v1.13.2
 		mgoltzsche/jenkins-jnlp-slave:latest'
 
 build() {
-	loadImages &&
-	docker build --force-rm -t ${KUBE_IMAGE} .
+	#loadImages &&
+	$DOCKER build --force-rm -t ${KUBE_IMAGE} .
 }
 
 loadImages() {
 	[ -f preloaded/images.tar ] ||
 	(mkdir -p preloaded &&
-	echo ${IMAGES} | xargs -n1 docker image pull &&
-	docker save ${IMAGES} > preloaded/images.tar)
+	echo ${IMAGES} | xargs -n1 $DOCKER image pull &&
+	$DOCKER save ${IMAGES} > preloaded/images.tar)
 }
 
 reloadImages() {
@@ -48,34 +48,35 @@ reloadImages() {
 initCA() {
 	[ ! -f ca-cert/ca.key ] || return 0
 	mkdir -p ca-cert
-	openssl req -x509 -nodes -newkey rsa:2048 -subj "/CN=$CA_CN" \
+	openssl req -x509 -nodes -newkey rsa:2048 -subj "/CN=fakeca" \
 		-config ca.conf -extensions v3_ca \
 		-keyout ca-cert/ca.key -out ca-cert/ca.crt
 }
 
 netCreate() {
-	docker network create --subnet=${KUBE_NET} kubeclusternet
+	$DOCKER network create --subnet=${KUBE_NET} kubeclusternet
 }
 
 netRemove() {
-	docker network rm kubeclusternet
+	$DOCKER network rm kubeclusternet
 }
 
 startMaster() {
 	# Start a kubernetes node
 	# Note: Use oci systemd hooks, see https://developers.redhat.com/blog/2016/09/13/running-systemd-in-a-non-privileged-container/
 	# HINT: swap must be disabled: swapoff -a
-	KUBE_TOKEN=${KUBE_TOKEN:=$(docker run --rm ${KUBE_IMAGE} kubeadm token generate)} || exit 2
+	KUBE_TOKEN=${KUBE_TOKEN:=$($DOCKER run --rm ${KUBE_IMAGE} kubeadm token generate)} || exit 2
 	[ "${KUBE_TOKEN}" ] || { echo KUBE_TOKEN not set and cannot not be derived >&2; exit 1; }
 	initCA &&
 	mkdir -p -m 0755 crio-data1 crio-data2 &&
-	docker run -d --name kube-master --rm --privileged \
-		--net=kubeclusternet --ip ${KUBE_MASTER_IP} --hostname kube-master \
+	# --ip ${KUBE_MASTER_IP}
+	$DOCKER run -d --name kube-master --rm --privileged \
+		--net=kubeclusternet --hostname kube-master \
 		-v /lib/modules:/lib/modules:ro \
 		-v /boot:/boot:ro \
 		-v `pwd`/ca-cert/ca.key:/etc/kubernetes/pki/ca.key:ro \
 		-v `pwd`/ca-cert/ca.crt:/etc/kubernetes/pki/ca.crt:ro \
-		-v `pwd`/crio-data1:/var/lib/containers:rw \
+		--mount type=bind,source=`pwd`/crio-data1,target=/data,bind-propagation=rshared \
 		-v `pwd`:/output:rw \
 		--tmpfs /run \
 		--tmpfs /tmp \
@@ -88,11 +89,11 @@ startNode() {
 	[ "${KUBE_MASTER_IP}" ] || { echo KUBE_MASTER_IP not set >&2; exit 1; }
 	[ "${KUBE_TOKEN}" ] || { echo KUBE_TOKEN not set >&2; exit 1; }
 	KUBE_CA_CERT_HASH=${KUBE_CA_CERT_HASH:=sha256:$(openssl x509 -in ca-cert/ca.crt -noout -pubkey | openssl rsa -pubin -outform DER 2>/dev/null | sha256sum | cut -d' ' -f1)} || exit 2
-	docker run -d --name kube-node --hostname kube-node --rm --privileged \
+	$DOCKER run -d --name kube-node --hostname kube-node --rm --privileged \
 		--net=kubeclusternet --link kube-master \
 		-v /lib/modules:/lib/modules:ro \
 		-v /boot:/boot:ro \
-		-v `pwd`/crio-data2:/var/lib/containers:rw \
+		--mount type=bind,source=`pwd`/crio-data2,target=/data,bind-propagation=rshared \
 		--tmpfs /run \
 		--tmpfs /tmp \
 		-e KUBE_TYPE=node \
@@ -103,19 +104,27 @@ startNode() {
 }
 
 stopNode() {
-	docker stop kube-node &&
-	docker rm kube-node
+	$DOCKER stop kube-node &&
+	$DOCKER rm kube-node
 }
 
 stopMaster() {
-	docker stop kube-master &&
-	docker rm kube-master
+	$DOCKER stop kube-master &&
+	$DOCKER rm kube-master
 }
 
 clean() {
 	stopNode || true
 	stopMaster || true
 	netRemove || true
+	# TODO: avoid this by properly deleting all pods before terminating the parent pod
+	mount | grep -Eo " `pwd`/crio-data[0-9]+/[^ ]+" | xargs umount || true
+}
+
+cleanStorage() {
+	clean
+	mount | grep -Eo " `pwd`/crio-data[0-9]+/[^ ]+" | xargs umount || true
+	rm -rf crio-data*
 }
 
 installKubectl() {
@@ -153,10 +162,9 @@ if [ "$1" ]; then
 		(set -x; $CMD)
 	done
 else
-	set -x
-	build &&
-	initCA &&
-	netCreate &&
-	startMaster &&
-	startNode
+	build
+	initCA
+	netCreate
+	startMaster
+	#startNode
 fi

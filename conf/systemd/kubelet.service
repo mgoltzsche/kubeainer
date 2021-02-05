@@ -20,15 +20,18 @@ Environment="KUBELET_EXTRA_ARGS=--feature-gates=AllAlpha=false,RunAsGroup=true \
 	--container-runtime=remote \
 	--container-runtime-endpoint=unix:///var/run/crio/crio.sock \
 	--runtime-request-timeout=5m \
+	--cgroups-per-qos=false \
+	--enforce-node-allocatable='' \
+	--oom-score-adj=0 \
 	--cgroup-driver=cgroupfs \
 	--cgroup-root=/ \
 	--kube-reserved-cgroup=/kube-reserved \
 	--kubelet-cgroups=/kubelet \
 	--resolv-conf=/etc/resolv.conf.coredns \
 	--fail-swap-on=false"
-ExecStart=/opt/bin/kubelet $KUBELET_KUBECONFIG_ARGS $KUBELET_CONFIG_ARGS $KUBELET_KUBEADM_ARGS $KUBELET_EXTRA_ARGS
+ExecStart=/usr/local/bin/kubelet $KUBELET_KUBECONFIG_ARGS $KUBELET_CONFIG_ARGS $KUBELET_KUBEADM_ARGS $KUBELET_EXTRA_ARGS $KUBELET_CUSTOM_ARGS
 
-#ExecStart=/opt/bin/start-kubelet
+#ExecStart=/usr/local/bin/start-kubelet
 Restart=always
 StartLimitInterval=0
 RestartSec=10

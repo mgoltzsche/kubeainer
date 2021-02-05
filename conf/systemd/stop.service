@@ -1,7 +1,10 @@
 [Unit]
 Description=stop: terminates systemd
+After=crio.service
 
 [Service]
 Type=oneshot
 #ExecStart=/bin/kill -2 1
 ExecStart=/bin/true
+# when run with docker mounts are left over - though the following doesn't fix it either:
+#ExecStart=/bin/sh -c "mount | grep -Eo " /data/[^ ]+" | xargs umount -r || true"

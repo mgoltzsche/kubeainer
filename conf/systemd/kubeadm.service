@@ -13,8 +13,8 @@ StandardOutput=journal+console
 ExecStart=/setup.sh
 # see https://kubernetes.io/docs/tasks/administer-cluster/safely-drain-node
 # TODO: Fix test cluster shutdown since elasticsearch keeps hanging in terminating state when draining
-ExecStop=/opt/bin/kubectl drain --force --ignore-daemonsets --delete-local-data %H
-ExecStop=/opt/bin/kubectl delete node %H
+ExecStop=/usr/local/bin/kubectl drain --force --ignore-daemonsets --delete-local-data %H
+ExecStop=/usr/local/bin/kubectl delete node %H
 
 [Install]
 WantedBy=multi-user.target

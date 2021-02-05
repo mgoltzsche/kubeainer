@@ -39,6 +39,9 @@ mount --make-shared /
 #mount --make-shared /run
 #mount --make-shared /lib/modules
 
+mkdir -p /data/containers /var/lib/containers
+mount --bind /data/containers /var/lib/containers
+
 # Use CRI-O version from volume dir to compare with current
 # to detect if storage needs to be wiped
 #[ -f /var/lib/crio/version ] || (
@@ -56,4 +59,4 @@ grep -E "/var/log/pods\s" /proc/mounts || mount --bind /var/lib/containers/node/
 mkdir -p /var/lib/containers/node/etcd /var/lib/etcd
 grep -E "/var/lib/etcd\s" /proc/mounts || mount --bind /var/lib/containers/node/etcd /var/lib/etcd
 
-exec /usr/sbin/systemd --unit=multi-user.target
+exec /usr/sbin/systemd

@@ -24,7 +24,8 @@ jenkins:
 
   Persistence:
     Size: 1Gi
-    StorageClass: local-storage
+    #StorageClass: local-storage
+    StorageClass: rook-ceph-block
 
   rbac:
     install: true
