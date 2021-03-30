@@ -1,4 +1,4 @@
-ARG K8S_VERSION=v1.18.15
+ARG K8S_VERSION=v1.20.5
 
 #FROM golang:1.10-alpine AS cfssl
 #RUN apk add --update --no-cache git build-base
@@ -11,13 +11,13 @@ ARG K8S_VERSION=v1.18.15
 ##
 # Build CRI-O
 ##
-FROM golang:1.14-alpine3.12 AS crio
+FROM golang:1.16-alpine3.13 AS crio
 RUN apk add --update --no-cache git make gcc pkgconf musl-dev \
 	btrfs-progs btrfs-progs-dev libassuan-dev lvm2-dev device-mapper \
 	glib-static libc-dev gpgme-dev protobuf-dev protobuf-c-dev \
-	libseccomp-dev libselinux-dev ostree-dev openssl iptables bash \
+	libseccomp-dev libseccomp-static libselinux-dev ostree-dev openssl iptables bash \
 	go-md2man
-ARG CRIO_VERSION=v1.18.4
+ARG CRIO_VERSION=v1.20.2
 RUN git clone --branch=${CRIO_VERSION} https://github.com/cri-o/cri-o /go/src/github.com/cri-o/cri-o
 WORKDIR /go/src/github.com/cri-o/cri-o
 RUN set -ex; \
@@ -30,7 +30,7 @@ RUN set -ex; \
 ##
 # Download binaries
 ##
-FROM alpine:3.12 AS downloads
+FROM alpine:3.13 AS downloads
 RUN apk add --update --no-cache curl tar
 
 # Download CNI plugins
@@ -39,7 +39,7 @@ RUN mkdir -p /usr/libexec/cni \
 	&& curl -L "https://github.com/containernetworking/plugins/releases/download/${CNI_PLUGIN_VERSION}/cni-plugins-linux-amd64-${CNI_PLUGIN_VERSION}.tgz" | tar -C /usr/libexec/cni -xz
 
 # Download crictl (required for kubeadm / Kubelet Container Runtime Interface (CRI))
-ARG CRICTL_VERSION=v1.18.0
+ARG CRICTL_VERSION=v1.20.0
 RUN curl -L "https://github.com/kubernetes-sigs/cri-tools/releases/download/${CRICTL_VERSION}/crictl-${CRICTL_VERSION}-linux-amd64.tar.gz" | tar -C /usr/local/bin -xz
 
 # Download kubeadm, kubelet, kubectl
@@ -50,21 +50,22 @@ RUN cd /usr/local/bin \
 	&& chmod +x kubeadm kubelet kubectl
 
 
-FROM mgoltzsche/podman:2.2.1-rc2-minimal AS podman
+FROM mgoltzsche/podman:3.0.1-minimal AS podman
 
 
 ##
 # Build final image
 ##
-FROM registry.fedoraproject.org/fedora-minimal:33
-
+FROM registry.fedoraproject.org/fedora-minimal:34
 # Install systemd and tools
 # - conntrack required by CRI-O
 # - network binaries required by CNI plugins
 # - (file system utilities for playing around with ceph)
 ENV container docker
+ENV TZ=UTC
 RUN set -ex; \
-	microdnf -y install systemd conntrack iptables iproute ebtables ethtool socat openssl xfsprogs e2fsprogs tar findutils; \
+	microdnf -y install systemd conntrack iptables iproute ebtables ethtool socat openssl xfsprogs e2fsprogs tar findutils tzdata; \
+	microdnf -y reinstall tzdata; \
 	microdnf clean all; \
 	systemctl --help >/dev/null
 
@@ -85,11 +86,12 @@ RUN set -ex; \
 	ln -s /usr/libexec/cni /opt/cni/bin; \
 	crio --config="" \
 		--cgroup-manager=cgroupfs \
+		--conmon-cgroup="pod" \
 		--default-runtime=crun \
 		--runtimes=crun:/usr/local/bin/crun:/run/crun config \
 			| sed '/\[crio.runtime.runtimes.runc\]/,+4 d' > /etc/crio/crio.conf; \
 	ln -s /usr/libexec/podman/conmon /usr/local/bin/conmon
-RUN set -ex; crio --help >/dev/null; crun --help >/dev/null; \
+RUN set -ex; crun --help >/dev/null; \
 	mkdir /data
 COPY conf/sysctl.d /etc/sysctl.d
 VOLUME ["/data"]

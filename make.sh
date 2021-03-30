@@ -7,7 +7,7 @@ set -e
 	#: ${KUBE_MASTER_IP:=`ip -4 route get 8.8.8.8 | awk {'print $7'} | tr -d '\n'`}
 
 DOCKER=${DOCKER:-docker}
-K8S_VERSION=v1.18.15
+K8S_VERSION=v1.20.5
 HELM_VERSION=v2.13.1
 IMAGES='k8s.gcr.io/kube-apiserver:v1.13.2
 		k8s.gcr.io/kube-proxy:v1.13.2
