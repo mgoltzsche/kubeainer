@@ -11,6 +11,8 @@ Wants=crio.service
 
 Environment="KUBELET_KUBECONFIG_ARGS=--bootstrap-kubeconfig=/etc/kubernetes/bootstrap-kubelet.conf --kubeconfig=/etc/kubernetes/kubelet.conf"
 Environment="KUBELET_CONFIG_ARGS=--config=/var/lib/kubelet/config.yaml"
+# Include /run/env in order to pass through KUBELET_CUSTOM_ARGS
+EnvironmentFile=/run/env
 # This is a file that "kubeadm init" and "kubeadm join" generate at runtime, populating the KUBELET_KUBEADM_ARGS variable dynamically
 EnvironmentFile=-/var/lib/kubelet/kubeadm-flags.env
 # --resolve-conf (default /etc/resolv.conf) must point to "real" resolv.conf without loopback IPs (otherwise coredns forwards to itself)

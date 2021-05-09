@@ -1,0 +1,33 @@
+# A docker-compose file to run a Kubernetes development cluster locally.
+# To wait for successful initialization, run:
+#   docker-compose exec kube-master kubeainer install
+# If you want to install additional addons, run e.g.:
+#   docker-compose exec kube-master kubeainer install local-path-provisioner metallb
+version: "3.9"
+services:
+  kube-master:
+    image: local/kubernetes:latest
+    privileged: true
+    environment:
+    - KUBE_TYPE=master
+#    ports:
+#    - "80:80"
+    volumes:
+    - shared-secrets:/secrets
+    - data1:/data
+    - .:/output
+    networks:
+    - kubenet
+
+volumes:
+  shared-secrets:
+  data1:
+  #data2:
+
+networks:
+  kubenet:
+    driver: bridge
+    ipam:
+      config:
+      - subnet: 10.23.0.0/16
+        gateway: 10.23.0.1

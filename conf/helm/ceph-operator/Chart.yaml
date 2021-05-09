@@ -1,4 +1,0 @@
-apiVersion: v1
-description: rook ceph operator
-name: ceph-operator
-version: 0.1.0

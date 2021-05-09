@@ -4,6 +4,7 @@ Documentation=https://github.com/cri-o/cri-o
 Wants=network-online.target
 After=network-online.target
 After=crio-wipe.service
+Before=kubelet.service
 Requires=crio-wipe.service
 
 [Service]
@@ -12,6 +13,7 @@ EnvironmentFile=-/run/env
 Environment=GOTRACEBACK=crash
 ExecStart=/usr/local/bin/crio
 ExecReload=/bin/kill -s HUP $MAINPID
+ExecStop=/bin/sh -c 'crictl ps -q | xargs -r crictl stop'
 TasksMax=infinity
 LimitNOFILE=1048576
 LimitNPROC=1048576
