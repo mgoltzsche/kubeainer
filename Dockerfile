@@ -157,7 +157,7 @@ RUN printf 'runtime-endpoint: unix:///var/run/crio/crio.sock' > /etc/crictl.yaml
 # Make init script appear as systemd init process to support OCI hooks oci-systemd-hook and oci-register-machine
 RUN mv /usr/sbin/init /usr/sbin/systemd
 COPY entrypoint.sh /usr/sbin/init
-COPY setup.sh /setup.sh
+COPY kubeadm-bootstrap.sh /kubeadm-bootstrap.sh
 COPY kubeainer.sh /usr/local/bin/kubeainer
 
 STOPSIGNAL 2

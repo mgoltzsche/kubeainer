@@ -4,26 +4,46 @@ A [Kubernetes](https://github.com/kubernetes/kubernetes) container image and [Do
 
 It uses upstream Kubernetes as well as [CRI-O](https://github.com/cri-o/cri-o) and initializes the cluster using [kubeadm](https://github.com/kubernetes/kubeadm).
 
-## Usage
+## Build and run from source
 
-Build and run the container:
+Clone the repo, build and run the container:
 ```sh
+git clone https://github.com/mgoltzsche/kubeainer.git
 make image compose-up
 ```
+_Set the `NODES` parameter to scale._
 
-Alternatively:
+## Usage
+
+Run a single-node cluster:
 ```sh
-docker-compose up -d
+docker-compose up -d --scale kube-node=0
+```
+_You can run a multi-node cluster by scaling the `kube-node` service._  
+
+Wait for the cluster to initialize:
+```sh
 docker-compose exec kube-master kubeainer install
 ```
-_The `kubeainer install` command waits for the cluster initialization to complete and must be run within the container._
 
-To install additional built-in addons run e.g.:
+Apps can be installed by running e.g.:
 ```sh
 docker-compose exec kube-master kubeainer install local-path-provisioner metallb cert-manager
 ```
+_Apps are kustomizations within the `/etc/kubernetes/apps` directory within the container._
 
-Once the cluster is initialized the Kubernetes client configuration is written to `$PWD/kubeconfig.yaml` (`$PWD` is the compose project's directory) and can be used as follows:
+Once the cluster is initialized the Kubernetes client configuration is written to `$PWD/kubeconfig.yaml` (`$PWD` is the compose directory) and can be used as follows:
 ```sh
 export KUBECONFIG=$PWD/kubeconfig.yaml
+```
+
+## Init processes
+
+```
+entrypoint.sh
+└── exec systemd
+    ├── crio
+    ├── kubelet
+    └── kubeadm-bootstrap.sh
+        └── kubeadm
 ```

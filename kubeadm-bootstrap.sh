@@ -55,7 +55,9 @@ initNode() {
 	set -x
 	kubeadm join "$KUBE_MASTER" --token="$KUBE_TOKEN" --discovery-token-ca-cert-hash="$KUBE_CA_HASH" \
 		--cri-socket "/var/run/crio/crio.sock" \
-		--ignore-preflight-errors=FileContent--proc-sys-net-bridge-bridge-nf-call-iptables
+		--ignore-preflight-errors=FileContent--proc-sys-net-bridge-bridge-nf-call-iptables \
+		--ignore-preflight-errors Swap \
+		--ignore-preflight-errors SystemVerification
 }
 
 # Args: APP_NAME

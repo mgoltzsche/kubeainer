@@ -24,8 +24,9 @@ image-preloaded: image
 	$(DOCKER) rm $(CONTAINER_NAME) \
 	exit $$STATUS
 
+compose-up: NODES?=0
 compose-up: image
-	$(DOCKER_COMPOSE) up -d
+	$(DOCKER_COMPOSE) up -d --scale kube-node=$(NODES)
 	$(DOCKER_COMPOSE) exec kube-master kubeainer install metallb local-path-provisioner
 
 compose-down:

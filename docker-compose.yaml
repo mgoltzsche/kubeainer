@@ -19,10 +19,22 @@ services:
     networks:
     - kubenet
 
+  kube-node:
+    image: local/kubernetes:latest
+    privileged: true
+    environment:
+    - KUBE_TYPE=node
+    volumes:
+    - shared-secrets:/secrets
+    - data2:/data
+    - .:/output
+    networks:
+    - kubenet
+
 volumes:
   shared-secrets:
   data1:
-  #data2:
+  data2:
 
 networks:
   kubenet:
