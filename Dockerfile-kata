@@ -1,0 +1,56 @@
+# Add kata-containers support to the kubernetes node image.
+# TODO: make it work
+
+#FROM golang:1.16-alpine3.13 AS buildbase
+#RUN apk add --update --no-cache git make gcc pkgconf musl-dev \
+#	btrfs-progs btrfs-progs-dev libassuan-dev lvm2-dev device-mapper \
+#	glib-static libc-dev gpgme-dev protobuf-dev protobuf-c-dev \
+#	libseccomp-dev libseccomp-static libselinux-dev ostree-dev openssl iptables bash \
+#	go-md2man
+
+##
+# Build kata containers runtime
+##
+#FROM buildbase AS kata-runtime
+#RUN apk add --update --no-cache rust yq curl
+#ARG KATA_CONTAINERS_VERSION=2.0.3
+#RUN git clone -c 'advice.detachedHead=false' --branch=${KATA_CONTAINERS_VERSION} https://github.com/kata-containers/kata-containers /go/src/github.com/kata-containers/kata-containers
+#WORKDIR /go/src/github.com/kata-containers/kata-containers/src/runtime
+#ENV KATA_LDFLAGS="-ldflags \"-s -w -extldflags '-static'\""
+#RUN make runtime netmon monitor install-runtime install-monitor install-netmon
+
+##
+# Download binaries
+##
+FROM alpine:3.13 AS downloads
+RUN apk add --update --no-cache curl tar xz
+
+# Download kata runtime with firecracker
+#ARG KATA_CONTAINERS_VERSION=2.0.3
+ARG KATA_CONTAINERS_VERSION=2.1.0-alpha2
+RUN set -ex; \
+	mkdir /opt/kata; \
+	curl -fsSL https://github.com/kata-containers/kata-containers/releases/download/${KATA_CONTAINERS_VERSION}/kata-static-${KATA_CONTAINERS_VERSION}-x86_64.tar.xz | tar -xJf -
+RUN sed -Ei 's/^(valid_hypervisor_paths =) *$/\1 ["\/opt\/kata\/bin\/kata-fc"]/' /opt/kata/share/defaults/kata-containers/configuration-fc.toml
+
+#
+# Build final image
+#
+FROM local/kubernetes:latest
+RUN microdnf -y install systemd conntrack iptables iproute ebtables ethtool socat openssl xfsprogs e2fsprogs tar findutils tzdata kmod
+#COPY --from=kata-runtime /usr/local/bin/ /usr/local/bin/
+#COPY --from=kata-runtime /usr/share/defaults/kata-containers/ /usr/share/defaults/kata-containers/
+
+#COPY --from=downloads /opt/kata/bin/kata-runtime /opt/kata/bin/containerd-shim-kata-v2 /opt/kata/bin/qemu-system-x86_64 /opt/kata/bin/kata-fc /opt/kata/bin/firecracker /opt/kata/bin/kata-monitor /opt/kata/bin/
+#COPY --from=downloads /opt/kata/share/kata-containers /opt/kata/share/kata-containers
+#COPY --from=downloads /opt/kata/share/defaults/kata-containers /opt/kata/share/defaults/kata-containers
+
+COPY --from=downloads /opt/kata /opt/kata
+
+# TODO: try firecracker: ln -sf configuration-fc.toml /opt/kata/share/defaults/kata-containers/configuration.toml
+RUN set -ex; \
+	/opt/kata/bin/kata-runtime version; \
+	crio --runtimes=kata:/opt/kata/bin/containerd-shim-kata-v2:/run/kata:vm \
+		config > /etc/crio/crio.conf
+
+ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/libexec/cni:/opt/kata/bin
