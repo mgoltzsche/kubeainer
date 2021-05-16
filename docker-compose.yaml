@@ -6,7 +6,7 @@
 version: "3.9"
 services:
   kube-master:
-    image: mgoltzsche/kubeainer:0.2.1
+    image: mgoltzsche/kubeainer:0.3.0
     privileged: true
     environment:
     - KUBE_TYPE=master
@@ -21,7 +21,7 @@ services:
     - kubenet
 
   kube-node:
-    image: mgoltzsche/kubeainer:0.2.1
+    image: mgoltzsche/kubeainer:0.3.0
     privileged: true
     environment:
     - KUBE_TYPE=node
