@@ -137,7 +137,7 @@ clean-storage: clean
 	mount | grep -Eo " `pwd`/crio-data[0-9]+/[^ ]+" | xargs umount || true
 	rm -rf crio-data*
 
-install-kubectl: K8S_VERSION?=v1.20.5
+install-kubectl: K8S_VERSION?=v1.21.1
 install-kubectl:
 	curl -fsSL https://storage.googleapis.com/kubernetes-release/release/$(K8S_VERSION)/bin/linux/amd64/kubectl > /usr/local/bin/kubectl
 	chmod +x /usr/local/bin/kubectl

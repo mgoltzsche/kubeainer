@@ -1,4 +1,4 @@
-ARG K8S_VERSION=v1.20.5
+ARG K8S_VERSION=v1.21.1
 
 #FROM golang:1.10-alpine AS cfssl
 #RUN apk add --update --no-cache git build-base
@@ -22,7 +22,7 @@ RUN apk add --update --no-cache git make gcc pkgconf musl-dev \
 # Build CRI-O
 ##
 FROM buildbase AS crio
-ARG CRIO_VERSION=v1.20.2
+ARG CRIO_VERSION=v1.21.0
 RUN git clone -c 'advice.detachedHead=false' --branch=${CRIO_VERSION} https://github.com/cri-o/cri-o /go/src/github.com/cri-o/cri-o
 WORKDIR /go/src/github.com/cri-o/cri-o
 RUN set -ex; \
@@ -43,7 +43,7 @@ RUN mkdir -p /usr/libexec/cni \
 	&& curl -fsSL "https://github.com/containernetworking/plugins/releases/download/${CNI_PLUGIN_VERSION}/cni-plugins-linux-amd64-${CNI_PLUGIN_VERSION}.tgz" | tar -C /usr/libexec/cni -xz
 
 # Download crictl (required for kubeadm / Kubelet Container Runtime Interface (CRI))
-ARG CRICTL_VERSION=v1.20.0
+ARG CRICTL_VERSION=v1.21.0
 RUN curl -fsSL "https://github.com/kubernetes-sigs/cri-tools/releases/download/${CRICTL_VERSION}/crictl-${CRICTL_VERSION}-linux-amd64.tar.gz" | tar -C /usr/local/bin -xz
 
 # Download kubeadm, kubelet, kubectl
