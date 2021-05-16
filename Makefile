@@ -19,6 +19,8 @@ KPT_VERSION = v0.39.2
 
 PRELOADED_IMAGES_DIR=preloaded-images
 
+all: apps image
+
 image:
 	$(DOCKER) build --force-rm -t $(KUBE_IMAGE) --target=k8s .
 
@@ -57,7 +59,7 @@ docker-push:
 	docker tag ${KUBE_IMAGE} ${KUBE_IMAGE_NAME}:latest
 	docker push ${KUBE_IMAGE_NAME}:latest
 
-release: update-release-version image test docker-push
+release: update-release-version apps image test docker-push
 
 update-release-version: KUBE_IMAGE_NAME_ESCAPED=$(subst /,\/,$(KUBE_IMAGE_NAME))
 update-release-version:

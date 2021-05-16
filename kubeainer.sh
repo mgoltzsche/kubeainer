@@ -41,7 +41,8 @@ waitForNodes() {
 	[ -f /output/kubeconfig.yaml ] || export KUBECONFIG=/secrets/kubeconfig.yaml
 	kubectl wait --for condition=ready --timeout 160s node/$(cat /etc/hostname) >/dev/null \
 		|| (echo kube-system pods:; kubectl -n kube-system get pods; false) \
-		|| die "node did not become ready!"
+		|| (echo nodes:; kubectl get nodes; false) \
+		|| die "node $(cat /etc/hostname) did not become ready!"
 }
 
 exportKubeconfig() {
