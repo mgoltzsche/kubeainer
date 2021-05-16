@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: external-dns
+  namespace: kube-system
+spec:
+  type: NodePort
+  ports:
+  - name: dns
+    port: 53
+    protocol: UDP
+    targetPort: dns
+    nodePort: 53
+  selector:
+    app: external-dns

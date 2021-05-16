@@ -2,9 +2,7 @@
 
 # See https://kubernetes.io/docs/setup/independent/create-cluster-kubeadm/
 
-# TODO: Skip if already set up
-
-set -e
+set -eu
 
 SECRETS_DIR=/secrets
 KUBE_TOKEN_FILE=$SECRETS_DIR/kube.token
@@ -15,35 +13,74 @@ initMaster() {
 	initCA
 	KUBE_TOKEN="$(writeAtomicFile $KUBE_TOKEN_FILE kubeadm token generate)"
 	KUBE_MASTER_IP="$(writeAtomicFile $KUBE_MASTER_IP_FILE getPublicIP)"
-	echo Initializing Kubernetes $KUBERNETES_VERSION master
+	echo Initializing Kubernetes $K8S_VERSION master
 	set -x
 	# ignoring missing bridge feature since it just doesn't show up within a network namespace due to a kernel bug but is functional
 	# see https://github.com/cri-o/cri-o/blob/master/tutorials/kubeadm.md
 	# TODO: move apiserver cgroup below container's cgroup as well:
 	# --resource-container option, e.g. as in https://github.com/kubernetes-retired/kubeadm-dind-cluster/blob/master/image/kubeadm.conf.1.13.tmpl
-	kubeadm init --token="$KUBE_TOKEN" \
-		--cri-socket "/var/run/crio/crio.sock" \
-		--pod-network-cidr=10.244.0.0/16 \
-		--kubernetes-version=$K8S_VERSION \
+	#		--node-name="$(cat /etc/hostname)" \
+	# kubeadm options have been moved into the configuration
+	# (because otherwise service-node-port-range cannot be set):
+    #  --token="$KUBE_TOKEN"
+	#  --service-dns-domain=cluster.local
+	#  --pod-network-cidr=10.244.0.0/16
+	#  --kubernetes-version=$K8S_VERSION
+	# derived from `kubeadm config print init-defaults`
+	cat - > /tmp/kubeadm.yaml <<-EOF
+		apiVersion: kubeadm.k8s.io/v1beta2
+		kind: InitConfiguration
+		bootstrapTokens:
+		- groups:
+		  - system:bootstrappers:kubeadm:default-node-token
+		  token: "$KUBE_TOKEN"
+		  ttl: 24h0m0s
+		  usages:
+		  - signing
+		  - authentication
+		localAPIEndpoint:
+		  advertiseAddress: "$KUBE_MASTER_IP"
+		  bindPort: 6443
+		nodeRegistration:
+		  criSocket: /var/run/crio/crio.sock
+		  name: "$(cat /etc/hostname)"
+		  # allow to schedule pods on the master node as well (in production master nodes should be tainted!)
+		  taints: []
+		---
+		apiVersion: kubeadm.k8s.io/v1beta2
+		kind: ClusterConfiguration
+		apiServer:
+		  extraArgs:
+		    authorization-mode: Node,RBAC
+			# allow ingress-nginx to bind node ports 80 and 443 and external-dns to bind node port 53
+		    service-node-port-range: 53-22767
+		  timeoutForControlPlane: 4m0s
+		certificatesDir: /etc/kubernetes/pki
+		clusterName: kubernetes
+		controllerManager: {}
+		dns:
+		  type: CoreDNS
+		etcd:
+		  local:
+		    dataDir: /var/lib/etcd
+		imageRepository: k8s.gcr.io
+		kubernetesVersion: "$K8S_VERSION"
+		networking:
+		  dnsDomain: cluster.local
+		  podSubnet: 10.244.0.0/16
+		  serviceSubnet: 10.96.0.0/12
+		scheduler: {}
+	EOF
+	kubeadm init --config=/tmp/kubeadm.yaml \
 		--ignore-preflight-errors=FileContent--proc-sys-net-bridge-bridge-nf-call-iptables \
-		--ignore-preflight-errors Swap \
-		--ignore-preflight-errors SystemVerification
+		--ignore-preflight-errors=Swap \
+		--ignore-preflight-errors=SystemVerification
 	mkdir -p /root/.kube /output
 	cp -f /etc/kubernetes/admin.conf /root/.kube/config
-	cp -f /etc/kubernetes/admin.conf /output/kubeconfig.yaml
-	chown $(stat -c '%u' /output) /output/kubeconfig.yaml
-	enableCoreDNSPluginK8sExternal
-	installApp flannel
-	openssl rand -base64 128 > /etc/kubernetes/apps/metallb/secretkey
-	#installApp metallb
-	#installApp ingress-nginx
-	#installApp local-path-provisioner
-	#installApp external-dns
-	#installApp cert-manager
-	#installApp kata-runtimeclass
-
-	# Untaint master node to schedule pods
-	kubectl taint node "$(cat /etc/hostname)" node-role.kubernetes.io/master-
+	cp -f /etc/kubernetes/admin.conf /secrets/kubeconfig.yaml
+	kubeainer export-kubeconfig
+	#enableCoreDNSPluginK8sExternal
+	kubeainer install-app flannel
 }
 
 initNode() {
@@ -58,11 +95,6 @@ initNode() {
 		--ignore-preflight-errors=FileContent--proc-sys-net-bridge-bridge-nf-call-iptables \
 		--ignore-preflight-errors Swap \
 		--ignore-preflight-errors SystemVerification
-}
-
-# Args: APP_NAME
-installApp() {
-	kubectl apply -k "/etc/kubernetes/apps/$1"
 }
 
 initCA() {

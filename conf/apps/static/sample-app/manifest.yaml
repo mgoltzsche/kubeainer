@@ -1,0 +1,90 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sample-app-service
+  template:
+    metadata:
+      name: sample-app-service
+      labels:
+        app: sample-app-service
+    spec:
+      containers:
+      - name: server
+        image: nginxinc/nginx-unprivileged:1.20-alpine
+        ports:
+        - name: http
+          containerPort: 8080
+          protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sample-app-service
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: 8080
+    protocol: TCP
+    name: http
+  selector:
+    app: sample-app-service
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: sample-app-ingress
+spec:
+  rules:
+  - host: sample-app.kubeainer.example.org
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: sample-app-service
+            port:
+              number: 80
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sample-app-client
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sample-app-client
+  template:
+    metadata:
+      name: sample-app-client
+      labels:
+        app: sample-app-client
+    spec:
+      securityContext:
+        runAsUser: 2000
+        runAsGroup: 2000
+        fsGroup: 2000
+      containers:
+      - name: client
+        image: alpine:3.13
+        command: ["sh", "-c"]
+        args:
+        - |
+          set -e
+          wget -O - http://sample-app-service
+          touch /tmp/ready
+          sleep infinity
+        readinessProbe:
+          exec:
+            command:
+            - cat
+            - /tmp/ready
+          initialDelaySeconds: 2
+          periodSeconds: 1

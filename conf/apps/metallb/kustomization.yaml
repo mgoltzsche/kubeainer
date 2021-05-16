@@ -1,12 +1,5 @@
 namespace: metallb-system
-
 bases:
-- base
-
-secretGenerator:
-- name: memberlist
-  files:
-  - secretkey
-
+- github.com/metallb/metallb//manifests?ref=v0.9.6
 resources:
-- configmap-layer2.yaml
+- config-layer2.yaml

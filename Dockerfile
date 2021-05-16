@@ -53,6 +53,11 @@ RUN cd /usr/local/bin \
 	&& curl -fsSL --remote-name-all https://storage.googleapis.com/kubernetes-release/release/${K8S_VERSION}/bin/linux/amd64/{kubeadm,kubelet,kubectl} \
 	&& chmod +x kubeadm kubelet kubectl
 
+ARG KPT_VERSION=v0.39.2
+RUN set -ex; \
+	curl -fsSL "https://github.com/GoogleContainerTools/kpt/releases/download/$KPT_VERSION/kpt_linux_amd64" > /usr/local/bin/kpt; \
+	chmod +x /usr/local/bin/kpt
+
 
 FROM mgoltzsche/podman:3.1.2-minimal AS podman
 
@@ -60,17 +65,18 @@ FROM mgoltzsche/podman:3.1.2-minimal AS podman
 ##
 # Build final image
 ##
-FROM registry.fedoraproject.org/fedora-minimal:34
+FROM registry.fedoraproject.org/fedora-minimal:34 AS k8s
 # Install systemd and tools
 # - conntrack required by CRI-O
 # - network binaries required by CNI plugins
 # - tzdata to set up timezone, required by container tools
 # - file system utilities for playing around with ceph
 # - curl, tar, xz, procps utility binaries
+# - git is required by kpt
 ENV container docker
 ENV TZ=UTC
 RUN set -ex; \
-	microdnf -y install systemd conntrack iptables iproute ebtables ethtool socat openssl xfsprogs e2fsprogs findutils curl tar xz procps tzdata; \
+	microdnf -y install systemd conntrack iptables iproute ebtables ethtool socat openssl xfsprogs e2fsprogs findutils curl tar xz procps git tzdata; \
 	microdnf -y reinstall tzdata; \
 	microdnf clean all; \
 	systemctl --help >/dev/null
@@ -89,7 +95,7 @@ COPY --from=podman /usr/libexec/podman/conmon /usr/libexec/podman/conmon
 COPY --from=podman /etc/containers /etc/containers
 COPY conf/ssl/ca.cnf /etc/ssl/ca.cnf
 RUN set -ex; \
-	mkdir -p /etc/crio /var/lib/crio /etc/kubernetes/manifests /usr/share/containers/oci/hooks.d /opt/cni /usr/share/defaults; \
+	mkdir -p /etc/crio /var/lib/crio /etc/kubernetes/manifests /usr/share/containers/oci/hooks.d /opt/cni /usr/share/defaults /secrets /data /var/lib/kubeainer/preloaded-images /var/lib/kubeainer/host-storage; \
 	ln -s /usr/libexec/cni /opt/cni/bin; \
 	crio --config="" \
 		--cgroup-manager=cgroupfs \
@@ -98,9 +104,8 @@ RUN set -ex; \
 		--runtimes=crun:/usr/local/bin/crun:/run/crun \
 		config \
 			| sed '/\[crio.runtime.runtimes.runc\]/,+4 d' > /etc/crio/crio.conf; \
-	ln -s /usr/libexec/podman/conmon /usr/local/bin/conmon
-RUN set -ex; crun --help >/dev/null; \
-	mkdir /data
+	ln -s /usr/libexec/podman/conmon /usr/local/bin/conmon; \
+	crun --help >/dev/null
 COPY conf/sysctl.d /etc/sysctl.d
 VOLUME ["/data"]
 
@@ -109,33 +114,13 @@ ENV KUBE_TYPE=master
 ARG K8S_VERSION
 ENV K8S_VERSION=$K8S_VERSION
 
-# Configure DNS:
+# Configure CoreDNS forwarders:
 # Write resolv.conf used by coredns (see kubelet args; must contain public IPs only to avoid coredns forwarding to itself)
 # (on a real host with systemd-resolve enabled /run/systemd/resolve/resolv.conf would be used as is instead)
 RUN printf 'nameserver 1.1.1.1\nnameserver 8.8.8.8\n' > /etc/resolv.conf.coredns
 
-
 # Add apps
-ARG FLANNEL_VERSION=v0.12.0
-ARG METALLB_VERSION=0.9.2
-ARG INGRESSNGINX_VERSION=nginx-0.25.1
-ARG LOCALPATHPROVISIONER_VERSION=0.0.12
-ARG CERTMANAGER_VERSION=v0.14.2
-COPY conf/apps /etc/kubernetes/apps
-ADD https://raw.githubusercontent.com/coreos/flannel/${FLANNEL_VERSION}/Documentation/kube-flannel.yml /etc/kubernetes/apps/flannel/flannel.yaml
-# Download metallb kustomization
-RUN curl -fsSL https://github.com/metallb/metallb/archive/v${METALLB_VERSION}.tar.gz | tar -xzf - -C /tmp \
-	&& mv /tmp/metallb-${METALLB_VERSION}/manifests /etc/kubernetes/apps/metallb/base \
-	&& rm -rf /tmp/metallb-${METALLB_VERSION}
-# Download ingress-nginx kustomization
-RUN curl -fsSL https://github.com/kubernetes/ingress-nginx/archive/${INGRESSNGINX_VERSION}.tar.gz | tar -xzf - -C /tmp \
-	&& mv /tmp/ingress-nginx-${INGRESSNGINX_VERSION}/deploy /etc/kubernetes/apps/ingress-nginx/deploy \
-	&& rm -rf /tmp/ingress-nginx-${INGRESSNGINX_VERSION}
-# Download local-path-provisioner kustomization
-RUN curl -fsSL https://github.com/rancher/local-path-provisioner/archive/v${LOCALPATHPROVISIONER_VERSION}.tar.gz | tar -xzf - -C /tmp \
-	&& mv /tmp/local-path-provisioner-${LOCALPATHPROVISIONER_VERSION}/deploy /etc/kubernetes/apps/local-path-provisioner/base \
-	&& rm -rf /tmp/local-path-provisioner-${LOCALPATHPROVISIONER_VERSION}
-RUN curl -fsSLo /etc/kubernetes/apps/cert-manager/cert-manager.yaml https://github.com/jetstack/cert-manager/releases/download/${CERTMANAGER_VERSION}/cert-manager.yaml
+COPY conf/apps/static /etc/kubeainer/apps
 
 ##
 # Enable systemd services
@@ -162,3 +147,11 @@ COPY kubeainer.sh /usr/local/bin/kubeainer
 
 STOPSIGNAL 2
 CMD ["/usr/sbin/init"]
+
+
+FROM k8s AS k8s-preloaded-images
+COPY preloaded-images/empty-store /var/lib/kubeainer/host-storage
+COPY preloaded-images/current /var/lib/kubeainer/preloaded-images
+RUN set -ex; \
+	sed -Ei 's/(additionalimagestores *= *\[)/\1 "\/var\/lib\/kubeainer\/preloaded-images",/' /etc/containers/storage.conf; \
+	sed -Ei 's/(additionalimagestores *= *\[)/\1 "\/var\/lib\/kubeainer\/host-storage",/' /etc/containers/storage.conf

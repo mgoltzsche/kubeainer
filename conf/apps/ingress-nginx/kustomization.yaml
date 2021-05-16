@@ -1,17 +1,7 @@
-bases:
-- deploy/cloud-generic
-- deploy/cluster-wide
-
-namespace: ingress-nginx
-
 resources:
-- namespace.yaml
-
+# ingress-nginx with LoadBalancer Service (requires metallb)
+#- github.com/kubernetes/ingress-nginx//deploy/static/provider/cloud?ref=controller-v0.46.0
+# ingress-nginx with NodePort Service (requires high port or kube-apiserver configured with a custom service-node-port-range)
+- github.com/kubernetes/ingress-nginx//deploy/static/provider/baremetal?ref=controller-v0.46.0
 patchesStrategicMerge:
-- service-loadbalancer.yaml
-
-images:
-- name: quay.io/kubernetes-ingress-controller/nginx-ingress-controller
-  newName: quay.io/kubernetes-ingress-controller/nginx-ingress-controller
-  # 0.25.1 may result in https://github.com/kubernetes/ingress-nginx/issues/4311
-  newTag: 0.24.1
+- nodeport-service.yaml

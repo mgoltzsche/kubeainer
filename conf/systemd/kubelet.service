@@ -7,7 +7,7 @@ Wants=crio.service
 [Service]
 # See https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/kubelet-integration/#the-kubelet-drop-in-file-for-systemd
 # For CRI-O see: https://github.com/cri-o/cri-o/blob/master/tutorials/kubeadm.md
-# TODO: use systemd cgroup driver: --cgroup-driver=systemd --cgroup-root=/systemd
+# TODO: use systemd cgroup driver: --cgroup-driver=systemd (requires binaries to be built with systemd support)
 
 Environment="KUBELET_KUBECONFIG_ARGS=--bootstrap-kubeconfig=/etc/kubernetes/bootstrap-kubelet.conf --kubeconfig=/etc/kubernetes/kubelet.conf"
 Environment="KUBELET_CONFIG_ARGS=--config=/var/lib/kubelet/config.yaml"

@@ -1,9 +1,7 @@
-# see https://github.com/kubernetes-sigs/external-dns/blob/master/docs/tutorials/rfc2136.md
-
-resources:
+resources: # see https://github.com/kubernetes-sigs/external-dns/blob/master/docs/tutorials/rfc2136.md
 - rbac.yaml
 - deployment.yaml
-
+- nodeport-service.yaml
 configMapGenerator:
 - name: externaldns-bind-conf
   namespace: kube-system

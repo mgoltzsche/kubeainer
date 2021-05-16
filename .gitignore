@@ -1,7 +1,8 @@
+build/
 ca-cert/
-preloaded/
+preloaded-images/
 crio-data*
 kubeconfig.yaml
 **/*.lock
 **/charts
-
+generated-manifest.yaml

@@ -1,0 +1,18 @@
+apiVersion: v1 # NOTE: auto-generated. Some fields should NOT be modified.
+kind: ConfigMap
+metadata:
+  # DANGER: Do not change the inventory object namespace.
+  # Changing the namespace will cause a loss of continuity
+  # with previously applied grouped objects. Set deletion
+  # and pruning functionality will be impaired.
+  namespace: kube-system
+  # NOTE: The name of the inventory object does NOT have
+  # any impact on group-related functionality such as
+  # deletion or pruning.
+  name: inventory-local-path-provisioner-86934556
+  labels:
+    # DANGER: Do not change the value of this label.
+    # Changing this value will cause a loss of continuity
+    # with previously applied grouped objects. Set deletion
+    # and pruning functionality will be impaired.
+    cli-utils.sigs.k8s.io/inventory-id: 8ecb61bd-4498-4044-bf41-7fe777a21ffe
