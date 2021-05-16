@@ -45,6 +45,18 @@ waitForNodes() {
 		|| die "node $(cat /etc/hostname) did not become ready!"
 }
 
+# ARGS: SECONDS CMD...
+retry() {
+	SECONDS="$1"
+	shift
+	for i in $(seq 0 "$SECONDS"); do
+		"$@" >/dev/null 2>&1 && return 0
+		sleep 1
+	done
+	echo "ERROR: timed out after $SECONDS attempts: $@" >&2
+	"$@"
+}
+
 exportKubeconfig() {
 	cp -f /etc/kubernetes/admin.conf /output/kubeconfig.yaml
 	chown $(stat -c '%u' /output) /output/kubeconfig.yaml
@@ -73,7 +85,7 @@ installApp() {
 	APP_DIR="$(appDir "$1")"
 	echo Installing $1
 	[ -f "$APP_DIR/inventory-template.yaml" ] || kpt live init "$APP_DIR"
-	kpt live apply "$APP_DIR" >/dev/null
+	kpt live apply "$APP_DIR" >/dev/null 2>&1 || kpt live apply "$APP_DIR"
 	[ ! -f "$APP_DIR/post-apply-hook.sh" ] || (cd "$APP_DIR" && sh ./post-apply-hook.sh)
 	kpt live status --poll-until=current --timeout=90s "$APP_DIR" >/dev/null || die "Failed to deploy app $1!"
 	[ ! -f "$APP_DIR/post-install-hook.sh" ] || (cd "$APP_DIR" && sh ./post-install-hook.sh)
@@ -90,6 +102,11 @@ case "${1:-}" in
 	install-app)
 		shift
 		installApps "$@"
+	;;
+	retry)
+		SECONDS="$2"
+		shift 2
+		retry "$SECONDS" "$@"
 	;;
 	export-kubeconfig)
 		exportKubeconfig

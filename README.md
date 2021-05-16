@@ -10,11 +10,34 @@ It uses upstream Kubernetes as well as [CRI-O](https://github.com/cri-o/cri-o) a
 Clone the repo, build and run the container:
 ```sh
 git clone https://github.com/mgoltzsche/kubeainer.git
-make image compose-up
+make apps image compose-up
 ```
 _Set the `NODES` parameter to scale._
 
 ## Usage
+
+### Docker
+
+Run a single-node cluster:
+```sh
+docker run -d --name mykube --privileged -v "`pwd`:/output" mgoltzsche/kubeainer:latest
+```
+
+Wait for the cluster to initialize:
+```sh
+docker exec mykube kubeainer install
+export KUBECONFIG="`pwd`/kubeconfig.yaml
+```
+
+Complete example with ingress:
+```sh
+$ docker run -d --name mykube --privileged -p 80:80 -v "`pwd`:/output" mgoltzsche/kubeainer:latest
+$ docker exec mykube kubeainer install ingress-nginx sample-app
+$ docker exec mykube kubeainer retry 90 curl -fsS -H 'Host: sample-app.kubeainer.example.org' http://localhost
+$ curl -fsS -H 'Host: sample-app.kubeainer.example.org' http://localhost
+```
+
+### Docker Compose
 
 Run a single-node cluster:
 ```sh
