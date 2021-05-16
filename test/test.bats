@@ -68,7 +68,7 @@ getIngressLoadBalancerIP() {
 
 @test "resolve sample-app Ingress hostname within cluster (DNS test)" {
 	SAMPLE_APP_POD=$(docker-compose exec -T kube-master kubectl get pod -o name | grep sample-app-client)
-	retry 90 docker-compose exec -T kube-master kubectl exec $SAMPLE_APP_POD -- sh -c "wget -O /dev/null http://$SAMPLE_HOST"
+	retry 120 docker-compose exec -T kube-master kubectl exec $SAMPLE_APP_POD -- sh -c "wget -O /dev/null http://$SAMPLE_HOST"
 }
 
 @test "resolve known external hostname within cluster (DNS test)" {
