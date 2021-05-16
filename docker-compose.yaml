@@ -6,12 +6,13 @@
 version: "3.9"
 services:
   kube-master:
-    image: local/kubernetes:latest
+    image: mgoltzsche/kubeainer:0.0.0
     privileged: true
     environment:
     - KUBE_TYPE=master
-#    ports:
-#    - "80:80"
+    ports:
+    - "80:80"
+    - "443:443"
     volumes:
     - shared-secrets:/secrets
     - data1:/data
@@ -20,14 +21,13 @@ services:
     - kubenet
 
   kube-node:
-    image: local/kubernetes:latest
+    image: mgoltzsche/kubeainer:0.0.0
     privileged: true
     environment:
     - KUBE_TYPE=node
     volumes:
     - shared-secrets:/secrets
     - data2:/data
-    - .:/output
     networks:
     - kubenet
 

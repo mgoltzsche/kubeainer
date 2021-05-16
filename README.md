@@ -1,4 +1,5 @@
-# Kubeainer
+Kubeainer ![GitHub workflow badge](https://github.com/mgoltzsche/kubeainer/workflows/Semantic%20release/badge.svg)
+=
 
 A [Kubernetes](https://github.com/kubernetes/kubernetes) container image and [Docker Compose](https://docs.docker.com/compose/compose-file/compose-file-v3/) project to spin up a local cluster for development and experimentation purposes.  
 
@@ -23,14 +24,14 @@ _You can run a multi-node cluster by scaling the `kube-node` service._
 
 Wait for the cluster to initialize:
 ```sh
-docker-compose exec kube-master kubeainer install
+docker-compose exec -T kube-master kubeainer install
 ```
 
 Apps can be installed by running e.g.:
 ```sh
-docker-compose exec kube-master kubeainer install local-path-provisioner metallb cert-manager
+docker-compose exec -T kube-master kubeainer install local-path-provisioner ingress-nginx cert-manager metallb external-dns
 ```
-_Apps are kustomizations within the `/etc/kubernetes/apps` directory within the container._
+_Apps are kustomizations within the `/etc/kubeainer/apps` directory within the container._
 
 Once the cluster is initialized the Kubernetes client configuration is written to `$PWD/kubeconfig.yaml` (`$PWD` is the compose directory) and can be used as follows:
 ```sh

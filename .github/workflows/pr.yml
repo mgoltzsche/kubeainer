@@ -1,0 +1,27 @@
+name: Build & Test
+
+on:
+  # Trigger the workflow on push or pull request on master branch
+  pull_request:
+    branches:
+    - master
+
+jobs:
+  test:
+    name: Build
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Check out code into the Go module directory
+      uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
+
+    - name: Build apps (manifests)
+      run: make apps check-repo-unchanged
+
+    - name: Build image
+      run: make image
+
+    - name: Run tests
+      run: make test

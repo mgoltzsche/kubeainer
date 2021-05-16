@@ -1,0 +1,89 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: flannel
+  annotations:
+    config.kubernetes.io/function: |
+      container:
+        image: mgoltzsche/kustomizr:1.1.2
+        network: true
+    config.kubernetes.io/local-config: "true"
+data:
+  path: flannel
+  outputPath: static/flannel/generated-manifest.yaml
+  '--reorder': none
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: local-path-provisioner
+  annotations:
+    config.kubernetes.io/function: |
+      container:
+        image: mgoltzsche/kustomizr:1.1.2
+        network: true
+    config.kubernetes.io/local-config: "true"
+data:
+  path: local-path-provisioner
+  outputPath: static/local-path-provisioner/generated-manifest.yaml
+  '--reorder': none
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cert-manager
+  annotations:
+    config.kubernetes.io/function: |
+      container:
+        image: mgoltzsche/kustomizr:1.1.2
+        network: true
+    config.kubernetes.io/local-config: "true"
+data:
+  path: cert-manager
+  outputPath: static/cert-manager/generated-manifest.yaml
+  '--reorder': none
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ingress-nginx
+  annotations:
+    config.kubernetes.io/function: |
+      container:
+        image: mgoltzsche/kustomizr:1.1.2
+        network: true
+    config.kubernetes.io/local-config: "true"
+data:
+  path: ingress-nginx
+  outputPath: static/ingress-nginx/generated-manifest.yaml
+  '--reorder': none
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: metallb
+  annotations:
+    config.kubernetes.io/function: |
+      container:
+        image: mgoltzsche/kustomizr:1.1.2
+        network: true
+    config.kubernetes.io/local-config: "true"
+data:
+  path: metallb
+  outputPath: static/metallb/generated-manifest.yaml
+  '--reorder': none
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: external-dns
+  annotations:
+    config.kubernetes.io/function: |
+      container:
+        image: mgoltzsche/kustomizr:1.1.2
+        network: true
+    config.kubernetes.io/local-config: "true"
+data:
+  path: /apps/external-dns
+  outputPath: static/external-dns/generated-manifest.yaml
+  '--reorder': none

@@ -1,13 +1,20 @@
 #!/bin/sh
 
-set -e
+set -eu
+
+export KUBE_TYPE="${KUBE_TYPE:-master}"
+
+[ "$KUBE_TYPE" = master -o "$KUBE_TYPE" = node ] \
+	|| (echo "ERROR: KUBE_TYPE has unsupported value '$KUBE_TYPE', expected master or node" >&2; false)
+
+kubeadm reset -f
 
 # Make sure cgroup directory exists.
-# This is a workaround because, within the container, /proc/1/cgroup points the host path.
+# This is a workaround because, within the container, /proc/1/cgroup points to the host path.
 # See https://github.com/moby/moby/issues/34584
-CGROUP="$(grep -E '^1:name=' /proc/self/cgroup | sed -E 's/^1:name=([^:]+):/\1/')"
-mkdir -p "/sys/fs/cgroup/$CGROUP"
-export KUBELET_CUSTOM_ARGS=--cgroup-root=$CGROUP
+#CGROUP="$(grep -E '^1:name=' /proc/self/cgroup | sed -E 's/^1:name=([^:]+):/\1/')"
+#mkdir -p "/sys/fs/cgroup/$CGROUP"
+#export KUBELET_CUSTOM_ARGS="--cgroup-root=/$CGROUP --kube-reserved-cgroup=/$CGROUP/kube-reserved --kubelet-cgroups=/$CGROUP/kubelet"
 
 # Add coredns (static ClusterIP) as first nameserver
 # (on a real host with systemd-resolve enabled /etc/systemd/resolved.conf would be configured with '[Resolve]\nDNS=10.96.0.10')
@@ -15,7 +22,7 @@ RESOLVCONF="$(echo 'nameserver 10.96.0.10' && cat /etc/resolv.conf)"
 echo "$RESOLVCONF" > /etc/resolv.conf
 
 # Create the /dev/kvm node - required for kata-containers/qemu
-if [ ! -e /dev/kvm ]; then
+if [ ! -e /dev/kvm ] && [ "${REQUIRE_KVM:-}" = true ]; then
 	echo Creating /dev/kvm node
 	mknod /dev/kvm c 10 $(grep '\<kvm\>' /proc/misc | cut -f 1 -d' ')   
 fi
@@ -71,7 +78,7 @@ grep -E " /var/lib/etcd\s" /proc/mounts || mount --bind /var/lib/containers/node
 
 grep -E " /run\s" /proc/mounts || mount -t tmpfs -o mode=1777 tmpfs /run
 
-if [ "$KUBE_IMAGES_PRELOADED" = true -a ! -d /var/lib/containers-preloaded ]; then
+if [ "${KUBE_IMAGES_PRELOADED:-false}" = true -a ! -d /var/lib/containers-preloaded ]; then
 	# Copy images from volume into image file system.
 	# This is a workaround to commit a container that includes all images that where loaded into the volume previously
 	crio &

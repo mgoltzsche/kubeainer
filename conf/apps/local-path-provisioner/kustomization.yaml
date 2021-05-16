@@ -1,5 +1,4 @@
-bases:
-  - base
-
+resources:
+- github.com/rancher/local-path-provisioner//deploy?ref=v0.0.19
 patchesStrategicMerge:
-  - storageclass.yaml
+- storageclass-patch.yaml
