@@ -11,8 +11,9 @@ KUBE_CA_HASH_FILE=$SECRETS_DIR/kube.cahash
 
 initMaster() {
 	initCA
+	rm -f $KUBE_MASTER_IP_FILE
+	KUBE_MASTER_IP="$(getPublicIP)"
 	KUBE_TOKEN="$(writeAtomicFile $KUBE_TOKEN_FILE kubeadm token generate)"
-	KUBE_MASTER_IP="$(writeAtomicFile $KUBE_MASTER_IP_FILE getPublicIP)"
 	echo Initializing Kubernetes $K8S_VERSION master
 	set -x
 	# ignoring missing bridge feature since it just doesn't show up within a network namespace due to a kernel bug but is functional
@@ -81,13 +82,14 @@ initMaster() {
 	kubeainer export-kubeconfig
 	#enableCoreDNSPluginK8sExternal
 	kubeainer install-app flannel
+	writeAtomicFile $KUBE_MASTER_IP_FILE echo "$KUBE_MASTER_IP"
 }
 
 initNode() {
 	[ -d $SECRETS_DIR ] || (echo ERROR: the directory $SECRETS_DIR does not exist but needs to be mounted into all node containers >&2; false)
-	KUBE_CA_HASH="$(waitForFile $KUBE_CA_HASH_FILE)"
-	KUBE_TOKEN="$(waitForFile $KUBE_TOKEN_FILE)"
-	KUBE_MASTER_IP="$(waitForFile $KUBE_MASTER_IP_FILE)"
+	KUBE_MASTER_IP="$(waitForFile $KUBE_MASTER_IP_FILE 500)"
+	KUBE_TOKEN="$(cat $KUBE_TOKEN_FILE)"
+	KUBE_CA_HASH="$(cat $KUBE_CA_HASH_FILE)"
 	KUBE_MASTER="$KUBE_MASTER_IP:6443"
 	set -x
 	kubeadm join "$KUBE_MASTER" --token="$KUBE_TOKEN" --discovery-token-ca-cert-hash="$KUBE_CA_HASH" \
@@ -135,11 +137,12 @@ getPublicIP() {
 	ip -4 route get 8.8.8.8 | awk {'print $7'} | tr -d '\n'
 }
 
-# Args: FILE
+# Args: FILE ATTEMPTS
 waitForFile() {
+	ATTEMPTS="$2"
 	cat $1 2>/dev/null && return 0 || true
-	echo Waiting for $1 to be written by master
-	for i in $(seq 0 60); do
+	echo Waiting for $1 to be written by master >&2
+	for i in $(seq 0 "$ATTEMPTS"); do
 		sleep 1
 		cat $1 2>/dev/null && return 0 || true
 	done

@@ -13,6 +13,7 @@ StandardOutput=journal+console
 ExecStart=/kubeadm-bootstrap.sh
 # see https://kubernetes.io/docs/tasks/administer-cluster/safely-drain-node
 # TODO: Fix test cluster shutdown since elasticsearch keeps hanging in terminating state when draining
+ExecStop=rm -f /secrets/kube.masterip
 ExecStop=/usr/local/bin/kubectl drain --force --ignore-daemonsets --delete-local-data %H
 ExecStop=/usr/local/bin/kubectl delete node %H
 

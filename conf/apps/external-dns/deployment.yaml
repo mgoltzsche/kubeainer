@@ -41,13 +41,7 @@ spec:
       containers:
       - name: bind
         image: resystit/bind9:latest
-        command: ["sh", "-c"]
-        args:
-        - |
-          set -e
-          FORWARDERS="$(grep -E '^nameserver\s' /etc/resolv.conf | grep -Eo '[0-9\.]+' | grep -Ev "$(hostname -i | sed -E 's/\./\\./g' | xargs | sed -E 's/ /|/g')" | sed -E 's/$/;/g')"
-          printf "forwarders {\n${FORWARDERS}\n1.1.1.1;\n8.8.8.8;\n};\n" > /etc/bind/forwarders.conf
-          exec named -g -c /etc/bind/named.conf
+        command: ["named", "-g", "-c", "/etc/bind/named.conf"]
         ports:
         - name: dns
           containerPort: 53

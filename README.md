@@ -28,6 +28,7 @@ Wait for the cluster to initialize:
 docker exec mykube kubeainer install
 export KUBECONFIG="`pwd`/kubeconfig.yaml
 ```
+_You can provide additional apps to the `kubeainer install` command as shown [below](#apps)._  
 
 Complete example with ingress:
 ```sh
@@ -49,12 +50,7 @@ Wait for the cluster to initialize:
 ```sh
 docker-compose exec -T kube-master kubeainer install
 ```
-
-Apps can be installed by running e.g.:
-```sh
-docker-compose exec -T kube-master kubeainer install local-path-provisioner ingress-nginx cert-manager metallb external-dns
-```
-_Apps are kustomizations within the `/etc/kubeainer/apps` directory within the container._
+_You can provide additional apps to the `kubeainer install` command as shown [below](#apps)._  
 
 Once the cluster is initialized the Kubernetes client configuration is written to `$PWD/kubeconfig.yaml` (`$PWD` is the compose directory) and can be used as follows:
 ```sh
@@ -71,3 +67,16 @@ entrypoint.sh
     └── kubeadm-bootstrap.sh
         └── kubeadm
 ```
+
+## Apps
+
+The `kubeainer` script within the container can be used to install additional apps.
+An app can be provided as directory that contains Kubernetes manifests.
+The image already contains some apps within the `/etc/kubeainer/apps` directory.
+By default the `flannel` app is installed.
+To install additional apps, run e.g.:
+```sh
+docker-compose exec -T kube-master kubeainer install local-path-provisioner ingress-nginx cert-manager metallb external-dns
+```
+
+You can also mount your own Kubernetes manifests into the kubeainer container and use them as apps.

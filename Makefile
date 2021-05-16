@@ -25,7 +25,7 @@ image:
 	$(DOCKER) build --force-rm -t $(KUBE_IMAGE) --target=k8s .
 
 test: image $(BATS)
-	timeout 700s $(BATS) -T ./test
+	timeout 1200s $(BATS) -T ./test
 
 apps: $(KPT)
 	$(KPT) fn run --network --mount "type=bind,src=`pwd`/conf/apps,target=/apps" --as-current-user conf/apps
