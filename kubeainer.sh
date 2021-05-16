@@ -39,7 +39,9 @@ waitForNodes() {
 	echo Waiting for node to become ready
 	# use mounted kubeconfig secret when not running on master node
 	[ -f /output/kubeconfig.yaml ] || export KUBECONFIG=/secrets/kubeconfig.yaml
-	kubectl wait --for condition=ready --timeout 120s node/$(cat /etc/hostname) >/dev/null || die "node did not become ready!"
+	kubectl wait --for condition=ready --timeout 160s node/$(cat /etc/hostname) >/dev/null \
+		|| (echo kube-system pods:; kubectl -n kube-system get pods; false) \
+		|| die "node did not become ready!"
 }
 
 exportKubeconfig() {
