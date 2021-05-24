@@ -78,6 +78,20 @@ grep -E " /var/lib/etcd\s" /proc/mounts || mount --bind /var/lib/containers/node
 
 grep -E " /run\s" /proc/mounts || mount -t tmpfs -o mode=1777 tmpfs /run
 
+if [ "${KUBEAINER_ROOTLESS:-}" = 1 ]; then
+	# Workarounds in order to run within rootless podman container
+	export _CRIO_ROOTLESS=1
+	# Fake kernel parameters to make the kubelet work
+	mkdir -p /rootless-workaround
+	cp -rf /proc/sys/vm /rootless-workaround/proc-sys-vm || true
+	#echo 1 > /rootless-workaround/proc-sys-vm/overcommit_memory
+	mount -o bind /rootless-workaround/proc-sys-vm /proc/sys/vm
+	cp -rf /proc/sys/kernel /rootless-workaround/proc-sys-kernel || true
+	#echo 10 > /rootless-workaround/proc-sys-kernel/panic
+	#echo 1 > /rootless-workaround/proc-sys-kernel/panic_on_oops
+	mount -o bind /rootless-workaround/proc-sys-kernel /proc/sys/kernel
+fi
+
 if [ "${KUBE_IMAGES_PRELOADED:-false}" = true -a ! -d /var/lib/containers-preloaded ]; then
 	# Copy images from volume into image file system.
 	# This is a workaround to commit a container that includes all images that where loaded into the volume previously
