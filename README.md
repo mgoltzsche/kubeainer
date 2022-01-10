@@ -1,7 +1,7 @@
 Kubeainer ![GitHub workflow badge](https://github.com/mgoltzsche/kubeainer/workflows/Semantic%20release/badge.svg)
 =
 
-A [Kubernetes](https://github.com/kubernetes/kubernetes) container image and [Docker Compose](https://docs.docker.com/compose/compose-file/compose-file-v3/) project to spin up a local cluster for development and experimentation purposes.  
+A [Kubernetes](https://kubernetes.io/) container image and [Docker Compose](https://docs.docker.com/compose/compose-file/compose-file-v3/) project to spin up a local cluster for development and experimentation purposes.
 
 It uses upstream Kubernetes as well as [CRI-O](https://github.com/cri-o/cri-o) and initializes the cluster using [kubeadm](https://github.com/kubernetes/kubeadm).
 
@@ -32,10 +32,10 @@ _You can provide additional apps to the `kubeainer install` command as shown [be
 
 Complete example with ingress:
 ```sh
-$ docker run -d --name mykube --privileged -p 80:80 -v "`pwd`:/output" mgoltzsche/kubeainer:latest
-$ docker exec mykube kubeainer install ingress-nginx sample-app
-$ docker exec mykube kubeainer retry 90 curl -fsS -H 'Host: sample-app.kubeainer.example.org' http://localhost
-$ curl -fsS -H 'Host: sample-app.kubeainer.example.org' http://localhost
+docker run -d --name mykube --privileged -p 80:80 -v "`pwd`:/output" mgoltzsche/kubeainer:latest
+docker exec mykube kubeainer install ingress-nginx sample-app
+docker exec mykube kubeainer retry 90 curl -fsS -H 'Host: sample-app.kubeainer.example.org' http://localhost
+curl -fsS -H 'Host: sample-app.kubeainer.example.org' http://localhost
 ```
 
 ### Docker Compose
@@ -54,7 +54,7 @@ _You can provide additional apps to the `kubeainer install` command as shown [be
 
 Once the cluster is initialized the Kubernetes client configuration is written to `$PWD/kubeconfig.yaml` (`$PWD` is the compose directory) and can be used as follows:
 ```sh
-export KUBECONFIG=$PWD/kubeconfig.yaml
+export KUBECONFIG="$PWD/kubeconfig.yaml"
 ```
 
 ## Init processes
